@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id           Int       @id @default(autoincrement())
+  nombre       String
+  apellido     String
+  email        String    @unique
+  contraseña   String
+  area         Area      @relation(fields: [id_area], references: [id])
+  id_area      Int
+  rol          Rol       @relation(fields: [id_rol], references: [id])
+  id_rol       Int
+  jornadas     Jornada[] @relation("UsuarioJornada")
+  supervisa    Jornada[] @relation("SupervisorJornada")
+  comentarios  Comentario[]
+  Auditoria Auditoria[]
+}
+
+model Jornada {
+  id_jornada   Int        @id @default(autoincrement())
+  fecha        DateTime
+  hora_checkin DateTime @default(now())
+  hora_checkout DateTime?
+  observaciones String?
+  aprobado     Boolean
+  usuario      Usuario    @relation("UsuarioJornada", fields: [id_usuario], references: [id])
+  id_usuario   Int
+  supervisor   Usuario    @relation("SupervisorJornada", fields: [id_supervisor], references: [id])
+  id_supervisor Int
+  actividades  Actividad[]
+}
+
+model Actividad {
+  id           Int         @id @default(autoincrement())
+  jornada      Jornada     @relation(fields: [id_jornada], references: [id_jornada])
+  id_jornada   Int
+  tarea        String
+  meta         String
+  estado       Estado      @relation(fields: [id_estado], references: [id])
+  id_estado    Int
+  observaciones String?
+  comentarios  Comentario[]
+}
+
+model Comentario {
+  id              Int       @id @default(autoincrement())
+  actividad       Actividad @relation(fields: [id_actividad], references: [id])
+  id_actividad    Int
+  supervisor      Usuario   @relation(fields: [id_supervisor], references: [id])
+  id_supervisor   Int
+  comentario      String
+  fecha_comentario DateTime
+}
+
+model Estado {
+  id            Int         @id @default(autoincrement())
+  nombre_estado String
+  actividades   Actividad[]
+}
+
+model Rol {
+  id          Int       @id @default(autoincrement())
+  nombre_rol  String
+  usuarios    Usuario[]
+}
+
+model Area {
+  id           Int       @id @default(autoincrement())
+  nombre_area  String
+  usuarios     Usuario[]
+}
+
+model Auditoria {
+  id          Int       @id @default(autoincrement())
+  usuario     Usuario   @relation(fields: [id_usuario], references: [id])
+  id_usuario  Int
+  accion      String
+  fecha       DateTime  @default(now())
+  descripcion String?
+}
