@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Jornada" ALTER COLUMN "hora_checkin" SET DEFAULT CURRENT_TIMESTAMP,
+ALTER COLUMN "hora_checkout" DROP NOT NULL;
