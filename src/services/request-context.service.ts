@@ -19,12 +19,18 @@ export class RequestContextService {
 
   getUserId(): number {
     if (!this.user?.sub) {
-      throw new Error('Usuario no autenticado');
+      throw new Error(
+        'Usuario no autenticado - no hay contexto de usuario disponible',
+      );
     }
     return this.user.sub;
   }
 
   getUserEmail(): string | null {
     return this.user?.email || null;
+  }
+
+  hasUser(): boolean {
+    return this.user !== null;
   }
 }

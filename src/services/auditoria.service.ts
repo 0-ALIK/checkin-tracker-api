@@ -11,7 +11,18 @@ export class AuditoriaService {
 
   async registrarAccion(accion: string, descripcion?: string, userId?: number) {
     try {
-      const id_usuario = userId || this.requestContext.getUserId();
+      let id_usuario: number;
+
+      if (userId) {
+        id_usuario = userId;
+      } else {
+        try {
+          id_usuario = this.requestContext.getUserId();
+        } catch {
+          // Si no hay contexto de usuario (ej: cron jobs), usar ID de sistema
+          id_usuario = 1; // ID del usuario del sistema
+        }
+      }
 
       return await this.prisma.auditoria.create({
         data: {
@@ -88,6 +99,17 @@ export class AuditoriaService {
         },
       },
       orderBy: { fecha: 'desc' },
+    });
+  }
+
+  // Nuevo método para limpieza automática
+  async limpiarAuditoriasAntiguas(fechaLimite: Date) {
+    return this.prisma.auditoria.deleteMany({
+      where: {
+        fecha: {
+          lt: fechaLimite,
+        },
+      },
     });
   }
 }
