@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { ApiProperty } from '@nestjs/swagger';
 
 class UserDto {
@@ -38,4 +39,15 @@ export class LoginResponseDto {
     type: UserDto,
   })
   user: UserDto;
+=======
+export class LoginResponseDto {
+  access_token: string;
+  user: {
+    id: number;
+    email: string;
+    nombre: string;
+    apellido: string;
+    id_rol?:number;
+  };
+>>>>>>> 3f5288aaf0f1d3280281adac006bebc5f808ee62
 }

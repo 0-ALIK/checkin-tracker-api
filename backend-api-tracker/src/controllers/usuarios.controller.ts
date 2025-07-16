@@ -17,7 +17,7 @@ import { AssignAreaDto } from '../dto/usuarios/assign-area.dto';
 import { JwtGuard } from '../guards/jwt.guard';
 
 @Controller('usuarios')
-//@UseGuards(JwtGuard)
+@UseGuards(JwtGuard)
 export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService) {}
 

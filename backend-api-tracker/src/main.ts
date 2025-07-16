@@ -1,4 +1,3 @@
-// backend/src/main.ts
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -8,33 +7,17 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Habilitar CORS
-  app.enableCors({
-    origin: ['http://localhost:9002', 'http://localhost:3001'], // Agregar URLs del frontend
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  });
-
   const configSwagger = new DocumentBuilder()
     .setTitle('Checkin tracker API')
     .setDescription('API for tracking check-ins')
     .setVersion('1.0')
-    .addBearerAuth() // Agregar autenticación Bearer
     .build();
   const documentFactory = () =>
     SwaggerModule.createDocument(app, configSwagger);
   SwaggerModule.setup('api', app, documentFactory);
 
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-    }),
-  );
+  app.useGlobalPipes(new ValidationPipe());
 
   await app.listen(envs.PORT);
-  console.log(`API running on http://localhost:${envs.PORT}`);
-  console.log(`Swagger docs: http://localhost:${envs.PORT}/api`);
 }
 void bootstrap();
