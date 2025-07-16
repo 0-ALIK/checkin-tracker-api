@@ -5,6 +5,5 @@ export class LoginResponseDto {
     email: string;
     nombre: string;
     apellido: string;
-    id_rol?:number;
   };
 }
