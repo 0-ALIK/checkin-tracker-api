@@ -8,6 +8,7 @@ import { ComentariosService } from './services/comentarios.service';
 import { EstadosService } from './services/estados.service';
 import { RolesService } from './services/roles.service';
 import { AreasService } from './services/areas.service';
+import { AuditoriaService } from './services/auditoria.service';
 import { RequestContextService } from './services/request-context.service';
 import { AuthController } from './controllers/auth.controller';
 import { UsuariosController } from './controllers/usuarios.controller';
@@ -17,6 +18,7 @@ import { ComentariosController } from './controllers/comentarios.controller';
 import { EstadosController } from './controllers/estados.controller';
 import { RolesController } from './controllers/roles.controller';
 import { AreasController } from './controllers/areas.controller';
+import { AuditoriaController } from './controllers/auditoria.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { envs } from './config/env.config';
 
@@ -38,6 +40,7 @@ import { envs } from './config/env.config';
     EstadosController,
     RolesController,
     AreasController,
+    AuditoriaController,
   ],
   providers: [
     PrismaService,
@@ -49,6 +52,7 @@ import { envs } from './config/env.config';
     EstadosService,
     RolesService,
     AreasService,
+    AuditoriaService,
     RequestContextService,
   ],
 })

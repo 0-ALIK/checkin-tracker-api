@@ -19,6 +19,7 @@ export class JwtGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
     const token = this.extractTokenFromHeader(request);
+    console.log('Token extraído:', token);
 
     if (!token) {
       throw new UnauthorizedException('Token no proporcionado');
@@ -42,12 +43,11 @@ export class JwtGuard implements CanActivate {
 
   private extractTokenFromHeader(request: any): string | undefined {
     const authorization = request.headers.authorization;
+    console.log('Authorization header:', authorization);
     if (!authorization) {
       return undefined;
     }
     
-    // Extraer el token del formato "Bearer TOKEN"
-    const [type, token] = authorization.split(' ');
-    return type === 'Bearer' ? token : undefined;
+    return authorization;
   }
 }

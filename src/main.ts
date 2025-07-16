@@ -10,7 +10,7 @@ async function bootstrap() {
 
   // Habilitar CORS
   app.enableCors({
-    origin: ['http://localhost:9002', 'http://localhost:3001'], // Agregar URLs del frontend
+    origin: '*',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -20,7 +20,7 @@ async function bootstrap() {
     .setTitle('Checkin tracker API')
     .setDescription('API for tracking check-ins')
     .setVersion('1.0')
-    .addBearerAuth() // Agregar autenticación Bearer
+    .addBasicAuth() // Agregar autenticación básica
     .build();
   const documentFactory = () =>
     SwaggerModule.createDocument(app, configSwagger);

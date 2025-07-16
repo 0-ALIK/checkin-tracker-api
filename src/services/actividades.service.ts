@@ -4,6 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
+import { AuditoriaService } from './auditoria.service';
 import { RequestContextService } from './request-context.service';
 import { CreateActividadDto } from '../dto/actividades/create-actividad.dto';
 import { UpdateActividadDto } from '../dto/actividades/update-actividad.dto';
@@ -13,6 +14,7 @@ export class ActividadesService {
   constructor(
     private prisma: PrismaService,
     private requestContext: RequestContextService,
+    private auditoriaService: AuditoriaService,
   ) {}
 
   async create(createActividadDto: CreateActividadDto) {
@@ -35,7 +37,7 @@ export class ActividadesService {
       );
     }
 
-    return this.prisma.actividad.create({
+    const nuevaActividad = await this.prisma.actividad.create({
       data: createActividadDto,
       include: {
         jornada: {
@@ -47,6 +49,14 @@ export class ActividadesService {
         comentarios: true,
       },
     });
+
+    await this.auditoriaService.registrarAccion(
+      'CREAR_ACTIVIDAD',
+      `Actividad creada: ${nuevaActividad.tarea} (Jornada ID: ${createActividadDto.id_jornada})`,
+      userId,
+    );
+
+    return nuevaActividad;
   }
 
   async update(id: number, updateActividadDto: UpdateActividadDto) {
@@ -69,7 +79,7 @@ export class ActividadesService {
       );
     }
 
-    return this.prisma.actividad.update({
+    const actividadActualizada = await this.prisma.actividad.update({
       where: { id },
       data: updateActividadDto,
       include: {
@@ -86,6 +96,14 @@ export class ActividadesService {
         },
       },
     });
+
+    await this.auditoriaService.registrarAccion(
+      'ACTUALIZAR_ACTIVIDAD',
+      `Actividad actualizada: ${actividad.tarea} (ID: ${id})`,
+      userId,
+    );
+
+    return actividadActualizada;
   }
 
   async findByJornada(jornadaId: number) {
@@ -106,6 +124,12 @@ export class ActividadesService {
         'No tienes permisos para ver las actividades de esta jornada',
       );
     }
+
+    await this.auditoriaService.registrarAccion(
+      'CONSULTAR_ACTIVIDADES_JORNADA',
+      `Consulta de actividades de la jornada ID: ${jornadaId}`,
+      userId,
+    );
 
     return this.prisma.actividad.findMany({
       where: { id_jornada: jornadaId },
@@ -159,6 +183,12 @@ export class ActividadesService {
         'No tienes permisos para ver esta actividad',
       );
     }
+
+    await this.auditoriaService.registrarAccion(
+      'CONSULTAR_ACTIVIDAD',
+      `Consulta de actividad: ${actividad.tarea} (ID: ${id})`,
+      userId,
+    );
 
     return actividad;
   }

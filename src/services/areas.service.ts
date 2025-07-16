@@ -4,12 +4,16 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
+import { AuditoriaService } from './auditoria.service';
 import { CreateAreaDto } from '../dto/areas/create-area.dto';
 import { UpdateAreaDto } from '../dto/areas/update-area.dto';
 
 @Injectable()
 export class AreasService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditoriaService: AuditoriaService,
+  ) {}
 
   async create(createAreaDto: CreateAreaDto) {
     // Verificar si el nombre ya existe
@@ -21,12 +25,24 @@ export class AreasService {
       throw new ConflictException('El nombre del área ya existe');
     }
 
-    return this.prisma.area.create({
+    const nuevaArea = await this.prisma.area.create({
       data: createAreaDto,
     });
+
+    await this.auditoriaService.registrarAccion(
+      'CREAR_AREA',
+      `Área creada: ${nuevaArea.nombre_area}`,
+    );
+
+    return nuevaArea;
   }
 
   async findAll() {
+    await this.auditoriaService.registrarAccion(
+      'LISTAR_AREAS',
+      'Consulta de todas las áreas',
+    );
+
     return this.prisma.area.findMany({
       include: {
         _count: {
@@ -55,11 +71,16 @@ export class AreasService {
       throw new NotFoundException(`Área con ID ${id} no encontrada`);
     }
 
+    await this.auditoriaService.registrarAccion(
+      'CONSULTAR_AREA',
+      `Consulta del área: ${area.nombre_area}`,
+    );
+
     return area;
   }
 
   async update(id: number, updateAreaDto: UpdateAreaDto) {
-    await this.findOne(id); // Verificar que existe
+    const areaAnterior = await this.findOne(id); // Verificar que existe
 
     // Si se actualiza el nombre, verificar que no exista
     if (updateAreaDto.nombre_area) {
@@ -75,10 +96,19 @@ export class AreasService {
       }
     }
 
-    return this.prisma.area.update({
+    const areaActualizada = await this.prisma.area.update({
       where: { id },
       data: updateAreaDto,
     });
+
+    await this.auditoriaService.registrarAccion(
+      'ACTUALIZAR_AREA',
+      `Área actualizada: ${areaAnterior.nombre_area} → ${
+        areaActualizada.nombre_area || areaAnterior.nombre_area
+      }`,
+    );
+
+    return areaActualizada;
   }
 
   async remove(id: number) {
@@ -91,8 +121,15 @@ export class AreasService {
       );
     }
 
-    return this.prisma.area.delete({
+    const areaEliminada = await this.prisma.area.delete({
       where: { id },
     });
+
+    await this.auditoriaService.registrarAccion(
+      'ELIMINAR_AREA',
+      `Área eliminada: ${area.nombre_area}`,
+    );
+
+    return areaEliminada;
   }
 }

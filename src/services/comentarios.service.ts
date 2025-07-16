@@ -4,6 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
+import { AuditoriaService } from './auditoria.service';
 import { RequestContextService } from './request-context.service';
 import { CreateComentarioDto } from '../dto/comentarios/create-comentario.dto';
 
@@ -12,6 +13,7 @@ export class ComentariosService {
   constructor(
     private prisma: PrismaService,
     private requestContext: RequestContextService,
+    private auditoriaService: AuditoriaService,
   ) {}
 
   async create(createComentarioDto: CreateComentarioDto) {
@@ -38,7 +40,7 @@ export class ComentariosService {
       );
     }
 
-    return this.prisma.comentario.create({
+    const nuevoComentario = await this.prisma.comentario.create({
       data: {
         id_actividad: createComentarioDto.id_actividad,
         id_supervisor: userId,
@@ -59,6 +61,14 @@ export class ComentariosService {
         supervisor: true,
       },
     });
+
+    await this.auditoriaService.registrarAccion(
+      'CREAR_COMENTARIO',
+      `Comentario creado en actividad: ${actividad.tarea} (ID: ${createComentarioDto.id_actividad})`,
+      userId,
+    );
+
+    return nuevoComentario;
   }
 
   async findByActividad(actividadId: number) {
@@ -87,6 +97,12 @@ export class ComentariosService {
         'No tienes permisos para ver los comentarios de esta actividad',
       );
     }
+
+    await this.auditoriaService.registrarAccion(
+      'CONSULTAR_COMENTARIOS_ACTIVIDAD',
+      `Consulta de comentarios de actividad: ${actividad.tarea} (ID: ${actividadId})`,
+      userId,
+    );
 
     return this.prisma.comentario.findMany({
       where: { id_actividad: actividadId },
@@ -127,6 +143,12 @@ export class ComentariosService {
         'No tienes permisos para ver los comentarios de esta jornada',
       );
     }
+
+    await this.auditoriaService.registrarAccion(
+      'CONSULTAR_COMENTARIOS_JORNADA',
+      `Consulta de comentarios de jornada ID: ${jornadaId}`,
+      userId,
+    );
 
     return this.prisma.comentario.findMany({
       where: {
