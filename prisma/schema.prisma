@@ -15,17 +15,13 @@ model Usuario {
   contraseña          String
   id_area              Int
   id_rol               Int
-  id_supervisor        Int?
   auditoria            Auditoria[]
   comentarios          Comentario[]
   jornadasSupervisadas Jornada[]    @relation("SupervisorJornada")
   jornadas             Jornada[]    @relation("UsuarioJornada")
   area                 Area         @relation(fields: [id_area], references: [id])
   rol                  Rol          @relation(fields: [id_rol], references: [id])
-  supervisor           Usuario?     @relation("SupervisorEmpleado", fields: [id_supervisor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuarios_supervisor")
-  supervisa            Usuario[]    @relation("SupervisorEmpleado")
 
-  @@index([id_supervisor], map: "idx_usuarios_supervisor")
   @@map("Usuario")
 }
 
