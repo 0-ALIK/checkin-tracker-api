@@ -1,123 +1,44 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
-import { AuditoriaService } from './auditoria.service';
 import { RequestContextService } from './request-context.service';
-import { CreateComentarioDto } from '../dto/comentarios/create-comentario.dto';
 
 @Injectable()
 export class ComentariosService {
   constructor(
     private prisma: PrismaService,
     private requestContext: RequestContextService,
-    private auditoriaService: AuditoriaService,
   ) {}
 
-  async create(createComentarioDto: CreateComentarioDto) {
+  async create(data: { id_actividad: number; comentario: string }) {
     const userId = this.requestContext.getUserId();
-
-    // Verificar que la actividad existe
-    const actividad = await this.prisma.actividad.findUnique({
-      where: { id: createComentarioDto.id_actividad },
-      include: {
-        jornada: true,
-      },
-    });
-
-    if (!actividad) {
-      throw new NotFoundException(
-        `Actividad con ID ${createComentarioDto.id_actividad} no encontrada`,
-      );
+    
+    if (!userId) {
+      throw new Error('Usuario no autenticado');
     }
 
-    // Verificar que el usuario es el supervisor de la jornada
-    if (actividad.jornada.id_supervisor !== userId) {
-      throw new ForbiddenException(
-        'Solo el supervisor puede crear comentarios en esta actividad',
-      );
-    }
-
-    const nuevoComentario = await this.prisma.comentario.create({
+    return this.prisma.comentario.create({
       data: {
-        id_actividad: createComentarioDto.id_actividad,
-        id_supervisor: userId,
-        comentario: createComentarioDto.comentario,
-        fecha_comentario: new Date(),
+        id_actividad: data.id_actividad,
+        comentario: data.comentario,
+        id_usuario: userId, // Cambiar de id_supervisor a id_usuario
+        fecha_comentario: new Date(), // Agregar fecha
       },
       include: {
-        actividad: {
-          include: {
-            jornada: {
-              include: {
-                usuario: true,
-              },
-            },
-            estado: true,
-          },
-        },
-        supervisor: true,
+        usuario: true, // Cambiar de supervisor a usuario
+        actividad: true,
       },
     });
-
-    await this.auditoriaService.registrarAccion(
-      'CREAR_COMENTARIO',
-      `Comentario creado en actividad: ${actividad.tarea} (ID: ${createComentarioDto.id_actividad})`,
-      userId,
-    );
-
-    return nuevoComentario;
   }
 
-  async findByActividad(actividadId: number) {
-    const userId = this.requestContext.getUserId();
-
-    // Verificar que la actividad existe
-    const actividad = await this.prisma.actividad.findUnique({
-      where: { id: actividadId },
-      include: {
-        jornada: true,
-      },
-    });
-
-    if (!actividad) {
-      throw new NotFoundException(
-        `Actividad con ID ${actividadId} no encontrada`,
-      );
-    }
-
-    // Verificar que el usuario tiene permisos (es el dueño de la jornada o el supervisor)
-    if (
-      actividad.jornada.id_usuario !== userId &&
-      actividad.jornada.id_supervisor !== userId
-    ) {
-      throw new ForbiddenException(
-        'No tienes permisos para ver los comentarios de esta actividad',
-      );
-    }
-
-    await this.auditoriaService.registrarAccion(
-      'CONSULTAR_COMENTARIOS_ACTIVIDAD',
-      `Consulta de comentarios de actividad: ${actividad.tarea} (ID: ${actividadId})`,
-      userId,
-    );
-
+  async findByActividad(id_actividad: number) {
     return this.prisma.comentario.findMany({
-      where: { id_actividad: actividadId },
+      where: { id_actividad },
       include: {
-        supervisor: {
+        usuario: { // Cambiar de supervisor a usuario
           select: {
             id: true,
             nombre: true,
             apellido: true,
-            email: true,
-          },
-        },
-        actividad: {
-          include: {
-            estado: true,
           },
         },
       },
@@ -126,30 +47,6 @@ export class ComentariosService {
   }
 
   async findByJornada(jornadaId: number) {
-    const userId = this.requestContext.getUserId();
-
-    // Verificar que la jornada existe
-    const jornada = await this.prisma.jornada.findUnique({
-      where: { id_jornada: jornadaId },
-    });
-
-    if (!jornada) {
-      throw new NotFoundException(`Jornada con ID ${jornadaId} no encontrada`);
-    }
-
-    // Verificar que el usuario tiene permisos (es el dueño de la jornada o el supervisor)
-    if (jornada.id_usuario !== userId && jornada.id_supervisor !== userId) {
-      throw new ForbiddenException(
-        'No tienes permisos para ver los comentarios de esta jornada',
-      );
-    }
-
-    await this.auditoriaService.registrarAccion(
-      'CONSULTAR_COMENTARIOS_JORNADA',
-      `Consulta de comentarios de jornada ID: ${jornadaId}`,
-      userId,
-    );
-
     return this.prisma.comentario.findMany({
       where: {
         actividad: {
@@ -157,17 +54,17 @@ export class ComentariosService {
         },
       },
       include: {
-        supervisor: {
+        usuario: { // Cambiar de supervisor a usuario
           select: {
             id: true,
             nombre: true,
             apellido: true,
-            email: true,
           },
         },
         actividad: {
-          include: {
-            estado: true,
+          select: {
+            id: true,
+            tarea: true,
           },
         },
       },

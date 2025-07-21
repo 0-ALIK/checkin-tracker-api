@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { MailerService } from '@nestjs-modules/mailer';
+import * as nodemailer from 'nodemailer';
 
 interface InformeUsuario {
   usuario: {
@@ -28,7 +29,32 @@ interface InformeUsuario {
 
 @Injectable()
 export class EmailService {
-  constructor(private readonly mailerService: MailerService) {}
+  private transporter: nodemailer.Transporter;
+
+  constructor(private readonly mailerService: MailerService) {
+    // Corregir el método: createTransport (sin "r")
+    this.transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: false, // true para 465, false para otros puertos
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+  }
+
+  // Método para verificar la conexión del transporter
+  async verifyConnection() {
+    try {
+      await this.transporter.verify();
+      console.log('Conexión SMTP verificada correctamente');
+      return true;
+    } catch (error) {
+      console.error('Error verificando conexión SMTP:', error);
+      return false;
+    }
+  }
 
   async enviarInformeDiario(informes: InformeUsuario[]) {
     const fecha = new Date().toLocaleDateString('es-ES');
@@ -78,6 +104,93 @@ export class EmailService {
         );
       }
     }
+  }
+
+  async enviarNotificacionCheckin(
+    supervisorEmail: string,
+    empleadoNombre: string,
+    fecha: Date,
+  ) {
+    const mailOptions = {
+      from: process.env.MAIL_FROM || process.env.SMTP_USER,
+      to: supervisorEmail,
+      subject: `Check-in registrado - ${empleadoNombre}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #2563eb;">Nuevo Check-in Registrado</h2>
+          <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <p><strong>Empleado:</strong> ${empleadoNombre}</p>
+            <p><strong>Fecha:</strong> ${fecha.toLocaleDateString('es-ES')}</p>
+            <p><strong>Hora:</strong> ${fecha.toLocaleTimeString('es-ES')}</p>
+          </div>
+          <p>El empleado ha iniciado su jornada laboral y ha planificado sus tareas del día.</p>
+          <p>Revisa las tareas planificadas y aprueba el check-in cuando corresponda.</p>
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+            <p style="font-size: 12px; color: #64748b;">
+              Este es un mensaje automático del Sistema de Check-in.
+            </p>
+          </div>
+        </div>
+      `,
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`Email de checkin enviado a ${supervisorEmail}`);
+    } catch (error) {
+      console.error('Error enviando email de checkin:', error);
+      throw error;
+    }
+  }
+
+  async enviarNotificacionCheckout(
+    supervisorEmail: string,
+    empleadoNombre: string,
+    fecha: Date,
+    horaCheckin: Date,
+    horaCheckout: Date,
+  ) {
+    const duracion = this.calcularDuracion(horaCheckin, horaCheckout);
+    
+    const mailOptions = {
+      from: process.env.MAIL_FROM || process.env.SMTP_USER,
+      to: supervisorEmail,
+      subject: `Check-out registrado - ${empleadoNombre}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #dc2626;">Check-out Registrado</h2>
+          <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <p><strong>Empleado:</strong> ${empleadoNombre}</p>
+            <p><strong>Fecha:</strong> ${fecha.toLocaleDateString('es-ES')}</p>
+            <p><strong>Hora Check-in:</strong> ${horaCheckin.toLocaleTimeString('es-ES')}</p>
+            <p><strong>Hora Check-out:</strong> ${horaCheckout.toLocaleTimeString('es-ES')}</p>
+            <p><strong>Duración:</strong> ${duracion}</p>
+          </div>
+          <p>El empleado ha finalizado su jornada laboral.</p>
+          <p>Revisa las actividades realizadas y aprueba el check-out cuando corresponda.</p>
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+            <p style="font-size: 12px; color: #64748b;">
+              Este es un mensaje automático del Sistema de Check-in.
+            </p>
+          </div>
+        </div>
+      `,
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`Email de checkout enviado a ${supervisorEmail}`);
+    } catch (error) {
+      console.error('Error enviando email de checkout:', error);
+      throw error;
+    }
+  }
+
+  private calcularDuracion(inicio: Date, fin: Date): string {
+    const diff = fin.getTime() - inicio.getTime();
+    const horas = Math.floor(diff / (1000 * 60 * 60));
+    const minutos = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return `${horas}h ${minutos}m`;
   }
 
   private generarHtmlInforme(informe: InformeUsuario, fecha: string): string {

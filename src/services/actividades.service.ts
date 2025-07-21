@@ -38,7 +38,7 @@ export class ActividadesService {
     }
 
     const nuevaActividad = await this.prisma.actividad.create({
-      data: createActividadDto,
+      data: createActividadDto as any, // Temporal fix para compatibilidad
       include: {
         jornada: {
           include: {
@@ -46,7 +46,11 @@ export class ActividadesService {
           },
         },
         estado: true,
-        comentarios: true,
+        comentarios: {
+          include: {
+            usuario: true, // Cambiar de supervisor a usuario
+          },
+        },
       },
     });
 
@@ -91,7 +95,7 @@ export class ActividadesService {
         estado: true,
         comentarios: {
           include: {
-            supervisor: true,
+            usuario: true, // Cambiar de supervisor a usuario
           },
         },
       },
@@ -142,7 +146,7 @@ export class ActividadesService {
         estado: true,
         comentarios: {
           include: {
-            supervisor: true,
+            usuario: true, // Cambiar de supervisor a usuario
           },
         },
       },
@@ -164,7 +168,7 @@ export class ActividadesService {
         estado: true,
         comentarios: {
           include: {
-            supervisor: true,
+            usuario: true, // Cambiar de supervisor a usuario
           },
         },
       },

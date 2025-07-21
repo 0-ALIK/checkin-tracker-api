@@ -1,21 +1,43 @@
-import { IsInt, IsNotEmpty, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
-export class CheckinDto {
-  @ApiProperty({
-    description: 'ID del supervisor que supervisa la jornada',
-    example: 3,
-  })
-  @IsInt({ message: 'El ID del supervisor debe ser un número entero' })
-  @IsNotEmpty({ message: 'El ID del supervisor es requerido' })
-  id_supervisor: number;
+class TareaDto {
+  @ApiProperty({ description: 'Descripción de la tarea', example: 'Revisar documentos' })
+  @IsString()
+  tarea: string;
 
-  @ApiProperty({
-    description: 'Fecha de la jornada laboral',
-    example: '2024-01-15',
-    format: 'date',
-  })
-  @IsDateString({}, { message: 'La fecha debe tener un formato válido' })
-  @IsNotEmpty({ message: 'La fecha es requerida' })
+  @ApiProperty({ description: 'Meta de la tarea', example: 'Completar revisión antes del mediodía' })
+  @IsString()
+  meta: string;
+
+  @ApiProperty({ description: 'Observaciones adicionales', required: false })
+  @IsOptional()
+  @IsString()
+  observaciones?: string;
+}
+
+export class CheckinDto {
+  @ApiProperty({ description: 'Fecha del check-in', example: '2024-01-15T08:00:00.000Z' })
+  @IsString()
   fecha: string;
+
+  @ApiProperty({ description: 'Comentario general del día', required: false })
+  @IsOptional()
+  @IsString()
+  comentario?: string;
+
+  @ApiProperty({ 
+    description: 'Lista de tareas planificadas', 
+    type: [TareaDto],
+    example: [
+      { tarea: 'Revisar emails', meta: 'Responder todos los pendientes' },
+      { tarea: 'Reunión de equipo', meta: 'Planificar sprint' },
+      { tarea: 'Actualizar documentación', meta: 'Documentar nuevas funcionalidades' }
+    ]
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TareaDto)
+  tareas: TareaDto[];
 }

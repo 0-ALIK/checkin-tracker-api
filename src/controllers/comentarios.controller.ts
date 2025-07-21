@@ -1,33 +1,29 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  ParseIntPipe,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { ComentariosService } from '../services/comentarios.service';
-import { CreateComentarioDto } from '../dto/comentarios/create-comentario.dto';
 import { JwtGuard } from '../guards/jwt.guard';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 
+@ApiTags('comentarios')
 @Controller('comentarios')
 @UseGuards(JwtGuard)
 export class ComentariosController {
   constructor(private readonly comentariosService: ComentariosService) {}
 
-  @Post()
-  create(@Body() createComentarioDto: CreateComentarioDto) {
-    return this.comentariosService.create(createComentarioDto);
+  @Get('jornada/:jornadaId')
+  @ApiOperation({ summary: 'Obtener comentarios de una jornada' })
+  getComentariosByJornada(@Param('jornadaId', ParseIntPipe) jornadaId: number) {
+    return this.comentariosService.findByJornada(jornadaId);
   }
 
   @Get('actividad/:actividadId')
-  findByActividad(@Param('actividadId', ParseIntPipe) actividadId: number) {
+  @ApiOperation({ summary: 'Obtener comentarios de una actividad' })
+  getComentariosByActividad(@Param('actividadId', ParseIntPipe) actividadId: number) {
     return this.comentariosService.findByActividad(actividadId);
   }
 
-  @Get('jornada/:jornadaId')
-  findByJornada(@Param('jornadaId', ParseIntPipe) jornadaId: number) {
-    return this.comentariosService.findByJornada(jornadaId);
+  @Post()
+  @ApiOperation({ summary: 'Crear un nuevo comentario' })
+  createComentario(@Body() createComentarioData: { id_actividad: number; comentario: string }) {
+    return this.comentariosService.create(createComentarioData);
   }
 }
