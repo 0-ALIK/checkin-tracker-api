@@ -51,8 +51,17 @@ export class AuditoriaController {
     @Query('fechaInicio') fechaInicio: string,
     @Query('fechaFin') fechaFin: string,
   ) {
-    const inicio = new Date(fechaInicio);
-    const fin = new Date(fechaFin);
+    // Convertir fechas y ajustar para zona horaria local
+    const inicio = new Date(fechaInicio + 'T00:00:00.000Z');
+    const fin = new Date(fechaFin + 'T23:59:59.999Z');
+    
+    console.log('🔍 Búsqueda de auditorías por fecha:');
+    console.log('   Parámetros recibidos:', { fechaInicio, fechaFin });
+    console.log('   Fecha inicio procesada:', inicio);
+    console.log('   Fecha fin procesada:', fin);
+    console.log('   ISO inicio:', inicio.toISOString());
+    console.log('   ISO fin:', fin.toISOString());
+    
     return this.auditoriaService.obtenerAuditoriasPorFecha(inicio, fin);
   }
 
