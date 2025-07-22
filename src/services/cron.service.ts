@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InformesService } from './informes.service';
 import { AuditoriaService } from './auditoria.service';
+import { BackupService } from './backup.service';
 
 @Injectable()
 export class CronService {
@@ -10,6 +11,7 @@ export class CronService {
   constructor(
     private readonly informesService: InformesService,
     private readonly auditoriaService: AuditoriaService,
+    private readonly backupService: BackupService,
   ) {}
 
   @Cron('0 22 * * *', {
@@ -94,6 +96,56 @@ export class CronService {
       await this.auditoriaService.registrarAccion(
         'LIMPIEZA_AUDITORIA_ERROR',
         `Error en limpieza automática de auditorías: ${error.message}`,
+        1,
+      );
+      
+      throw error;
+    }
+  }
+
+  // Cron para backup automático de la base de datos (diario a las 03:00)
+  @Cron('0 3 * * *', {
+    name: 'backup-automatico',
+    timeZone: 'America/Lima',
+  })
+  async ejecutarBackupAutomatico() {
+    this.logger.log('💾 Iniciando backup automático de la base de datos...');
+
+    try {
+      // Registrar inicio en auditoría
+      await this.auditoriaService.registrarAccion(
+        'BACKUP_INICIO',
+        'Cron job de backup automático iniciado',
+        1,
+      );
+
+      const resultado = await this.backupService.ejecutarBackup();
+
+      if (resultado.success) {
+        this.logger.log(`✅ Backup automático completado: ${resultado.archivo} (${resultado.tamaño})`);
+        
+        await this.auditoriaService.registrarAccion(
+          'BACKUP_EXITOSO',
+          `Backup automático completado exitosamente. Archivo: ${resultado.archivo}, Tamaño: ${resultado.tamaño}, Duración: ${resultado.duracion}ms`,
+          1,
+        );
+      } else {
+        this.logger.error(`❌ Error en backup automático: ${resultado.error}`);
+        
+        await this.auditoriaService.registrarAccion(
+          'BACKUP_ERROR',
+          `Error en backup automático: ${resultado.error}. Duración: ${resultado.duracion}ms`,
+          1,
+        );
+      }
+
+      return resultado;
+    } catch (error) {
+      this.logger.error('❌ Error crítico en backup automático:', error);
+      
+      await this.auditoriaService.registrarAccion(
+        'BACKUP_ERROR_CRITICO',
+        `Error crítico en backup automático: ${error.message}`,
         1,
       );
       

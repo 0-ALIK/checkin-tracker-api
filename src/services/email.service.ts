@@ -336,4 +336,40 @@ export class EmailService {
       }
     });
   }
+
+  /**
+   * Método genérico para enviar emails
+   */
+  async sendEmail(to: string, subject: string, html: string): Promise<void> {
+    if (!this.emailsHabilitados) {
+      console.log(`📧 [EMAIL DESHABILITADO] Para: ${to}, Asunto: ${subject}`);
+      return;
+    }
+
+    try {
+      await this.transporter.sendMail({
+        from: process.env.MAIL_FROM || process.env.MAIL_USER,
+        to,
+        subject,
+        html,
+      });
+      console.log(`✅ Email enviado a ${to}`);
+    } catch (error) {
+      console.error(`❌ Error enviando email a ${to}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Método asíncrono genérico para enviar emails sin bloquear
+   */
+  async sendEmailAsync(to: string, subject: string, html: string): Promise<void> {
+    Promise.resolve().then(async () => {
+      try {
+        await this.sendEmail(to, subject, html);
+      } catch (error) {
+        console.error('Error enviando email:', error);
+      }
+    });
+  }
 }

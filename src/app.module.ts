@@ -14,6 +14,7 @@ import { AuditoriaService } from './services/auditoria.service';
 import { EmailService } from './services/email.service';
 import { InformesService } from './services/informes.service';
 import { CronService } from './services/cron.service';
+import { BackupService } from './services/backup.service';
 import { RequestContextService } from './services/request-context.service';
 import { AuthController } from './controllers/auth.controller';
 import { UsuariosController } from './controllers/usuarios.controller';
@@ -25,6 +26,7 @@ import { RolesController } from './controllers/roles.controller';
 import { AreasController } from './controllers/areas.controller';
 import { AuditoriaController } from './controllers/auditoria.controller';
 import { InformesController } from './controllers/informes.controller';
+import { BackupController } from './controllers/backup.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { envs } from './config/env.config';
 
@@ -63,6 +65,7 @@ import { envs } from './config/env.config';
     AreasController,
     AuditoriaController,
     InformesController,
+    BackupController,
   ],
   providers: [
     PrismaService,
@@ -78,6 +81,7 @@ import { envs } from './config/env.config';
     EmailService,
     InformesService,
     CronService,
+    BackupService,
     RequestContextService,
   ],
 })
