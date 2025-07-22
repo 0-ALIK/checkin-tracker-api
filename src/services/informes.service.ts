@@ -20,15 +20,24 @@ export class InformesService {
     try {
       const informes = await this.obtenerInformesDiarios();
 
-      // Enviar informes individuales a usuarios
-      await this.emailService.enviarInformeDiario(informes);
+      // Enviar informes de forma asíncrona sin bloquear
+      Promise.resolve().then(async () => {
+        try {
+          // Enviar informes individuales a usuarios
+          await this.emailService.enviarInformeDiario(informes);
 
-      // Enviar informe gerencial a supervisores/gerentes
-      const emailsGerenciales = await this.obtenerEmailsGerenciales();
-      await this.emailService.enviarInformeGerencial(
-        informes,
-        emailsGerenciales,
-      );
+          // Enviar informe gerencial a supervisores/gerentes
+          const emailsGerenciales = await this.obtenerEmailsGerenciales();
+          await this.emailService.enviarInformeGerencial(
+            informes,
+            emailsGerenciales,
+          );
+
+          this.logger.log('Informes enviados exitosamente en segundo plano');
+        } catch (error) {
+          this.logger.error('Error enviando informes en segundo plano:', error);
+        }
+      });
 
       // Registrar en auditoría
       await this.auditoriaService.registrarAccion(
@@ -121,10 +130,20 @@ export class InformesService {
   // Método manual para enviar informes (útil para testing)
   async enviarInformeDiarioManual(fecha?: Date) {
     const informes = await this.obtenerInformesDiarios(fecha);
-    await this.emailService.enviarInformeDiario(informes);
+    
+    // Enviar emails de forma asíncrona sin bloquear la respuesta
+    Promise.resolve().then(async () => {
+      try {
+        await this.emailService.enviarInformeDiario(informes);
 
-    const emailsGerenciales = await this.obtenerEmailsGerenciales();
-    await this.emailService.enviarInformeGerencial(informes, emailsGerenciales);
+        const emailsGerenciales = await this.obtenerEmailsGerenciales();
+        await this.emailService.enviarInformeGerencial(informes, emailsGerenciales);
+
+        this.logger.log('Informes manuales enviados exitosamente en segundo plano');
+      } catch (error) {
+        this.logger.error('Error enviando informes manuales en segundo plano:', error);
+      }
+    });
 
     await this.auditoriaService.registrarAccion(
       'ENVIO_INFORME_MANUAL',

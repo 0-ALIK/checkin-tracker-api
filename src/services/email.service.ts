@@ -30,79 +30,31 @@ interface InformeUsuario {
 @Injectable()
 export class EmailService {
   private transporter: nodemailer.Transporter;
+  private emailsHabilitados: boolean = false;
 
   constructor(private readonly mailerService: MailerService) {
-    // Corregir el método: createTransport (sin "r")
-    this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: false, // true para 465, false para otros puertos
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-  }
+    // Verificar si las credenciales están configuradas
+    if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+      console.warn('⚠️  ADVERTENCIA: Credenciales de email no configuradas. Los emails no se enviarán.');
+      this.emailsHabilitados = false;
+      return;
+    }
 
-  // Método para verificar la conexión del transporter
-  async verifyConnection() {
     try {
-      await this.transporter.verify();
-      console.log('Conexión SMTP verificada correctamente');
-      return true;
+      this.transporter = nodemailer.createTransport({
+        host: process.env.MAIL_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.MAIL_PORT || '587'),
+        secure: false, // true para 465, false para otros puertos
+        auth: {
+          user: process.env.MAIL_USER,
+          pass: process.env.MAIL_PASS,
+        },
+      });
+      this.emailsHabilitados = true;
+      console.log('✅ Servicio de email configurado correctamente');
     } catch (error) {
-      console.error('Error verificando conexión SMTP:', error);
-      return false;
-    }
-  }
-
-  async enviarInformeDiario(informes: InformeUsuario[]) {
-    const fecha = new Date().toLocaleDateString('es-ES');
-
-    for (const informe of informes) {
-      if (informe.jornadas.length === 0) continue;
-
-      const htmlContent = this.generarHtmlInforme(informe, fecha);
-
-      try {
-        await this.mailerService.sendMail({
-          to: informe.usuario.email,
-          subject: `Informe Diario de Actividades - ${fecha}`,
-          html: htmlContent,
-        });
-
-        console.log(`Informe enviado a ${informe.usuario.email}`);
-      } catch (error) {
-        console.error(
-          `Error enviando correo a ${informe.usuario.email}:`,
-          error,
-        );
-      }
-    }
-  }
-
-  async enviarInformeGerencial(
-    informes: InformeUsuario[],
-    destinatarios: string[],
-  ) {
-    const fecha = new Date().toLocaleDateString('es-ES');
-    const htmlContent = this.generarHtmlInformeGerencial(informes, fecha);
-
-    for (const destinatario of destinatarios) {
-      try {
-        await this.mailerService.sendMail({
-          to: destinatario,
-          subject: `Informe Gerencial Diario - ${fecha}`,
-          html: htmlContent,
-        });
-
-        console.log(`Informe gerencial enviado a ${destinatario}`);
-      } catch (error) {
-        console.error(
-          `Error enviando informe gerencial a ${destinatario}:`,
-          error,
-        );
-      }
+      console.error('❌ Error configurando servicio de email:', error);
+      this.emailsHabilitados = false;
     }
   }
 
@@ -111,35 +63,32 @@ export class EmailService {
     empleadoNombre: string,
     fecha: Date,
   ) {
-    const mailOptions = {
-      from: process.env.MAIL_FROM || process.env.SMTP_USER,
-      to: supervisorEmail,
-      subject: `Check-in registrado - ${empleadoNombre}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2563eb;">Nuevo Check-in Registrado</h2>
-          <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p><strong>Empleado:</strong> ${empleadoNombre}</p>
-            <p><strong>Fecha:</strong> ${fecha.toLocaleDateString('es-ES')}</p>
-            <p><strong>Hora:</strong> ${fecha.toLocaleTimeString('es-ES')}</p>
-          </div>
-          <p>El empleado ha iniciado su jornada laboral y ha planificado sus tareas del día.</p>
-          <p>Revisa las tareas planificadas y aprueba el check-in cuando corresponda.</p>
-          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
-            <p style="font-size: 12px; color: #64748b;">
-              Este es un mensaje automático del Sistema de Check-in.
-            </p>
-          </div>
-        </div>
-      `,
-    };
+    if (!this.emailsHabilitados) {
+      console.log(`📧 [SIMULADO] Check-in email para ${supervisorEmail} - ${empleadoNombre} - ${fecha.toDateString()}`);
+      return;
+    }
 
     try {
+      const mailOptions = {
+        from: process.env.MAIL_FROM || process.env.MAIL_USER,
+        to: supervisorEmail,
+        subject: `Check-in registrado - ${empleadoNombre}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2563eb;">Nuevo Check-in Registrado</h2>
+            <p><strong>Empleado:</strong> ${empleadoNombre}</p>
+            <p><strong>Fecha:</strong> ${fecha.toLocaleDateString('es-ES')}</p>
+            <p><strong>Hora:</strong> ${new Date().toLocaleTimeString('es-ES')}</p>
+            <hr>
+            <p>Este es un mensaje automático del Sistema de Checkin.</p>
+          </div>
+        `,
+      };
+
       await this.transporter.sendMail(mailOptions);
-      console.log(`Email de checkin enviado a ${supervisorEmail}`);
+      console.log(`✅ Email de check-in enviado a ${supervisorEmail}`);
     } catch (error) {
-      console.error('Error enviando email de checkin:', error);
-      throw error;
+      console.error(`❌ Error enviando email de checkin:`, error);
     }
   }
 
@@ -150,39 +99,36 @@ export class EmailService {
     horaCheckin: Date,
     horaCheckout: Date,
   ) {
-    const duracion = this.calcularDuracion(horaCheckin, horaCheckout);
-    
-    const mailOptions = {
-      from: process.env.MAIL_FROM || process.env.SMTP_USER,
-      to: supervisorEmail,
-      subject: `Check-out registrado - ${empleadoNombre}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #dc2626;">Check-out Registrado</h2>
-          <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p><strong>Empleado:</strong> ${empleadoNombre}</p>
-            <p><strong>Fecha:</strong> ${fecha.toLocaleDateString('es-ES')}</p>
-            <p><strong>Hora Check-in:</strong> ${horaCheckin.toLocaleTimeString('es-ES')}</p>
-            <p><strong>Hora Check-out:</strong> ${horaCheckout.toLocaleTimeString('es-ES')}</p>
-            <p><strong>Duración:</strong> ${duracion}</p>
-          </div>
-          <p>El empleado ha finalizado su jornada laboral.</p>
-          <p>Revisa las actividades realizadas y aprueba el check-out cuando corresponda.</p>
-          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
-            <p style="font-size: 12px; color: #64748b;">
-              Este es un mensaje automático del Sistema de Check-in.
-            </p>
-          </div>
-        </div>
-      `,
-    };
+    if (!this.emailsHabilitados) {
+      console.log(`📧 [SIMULADO] Check-out email para ${supervisorEmail} - ${empleadoNombre} - ${fecha.toDateString()}`);
+      return;
+    }
 
     try {
+      const duracion = this.calcularDuracion(horaCheckin, horaCheckout);
+      
+      const mailOptions = {
+        from: process.env.MAIL_FROM || process.env.MAIL_USER,
+        to: supervisorEmail,
+        subject: `Check-out registrado - ${empleadoNombre}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #16a34a;">Check-out Registrado</h2>
+            <p><strong>Empleado:</strong> ${empleadoNombre}</p>
+            <p><strong>Fecha:</strong> ${fecha.toLocaleDateString('es-ES')}</p>
+            <p><strong>Check-in:</strong> ${horaCheckin.toLocaleTimeString('es-ES')}</p>
+            <p><strong>Check-out:</strong> ${horaCheckout.toLocaleTimeString('es-ES')}</p>
+            <p><strong>Duración:</strong> ${duracion}</p>
+            <hr>
+            <p>Este es un mensaje automático del Sistema de Checkin.</p>
+          </div>
+        `,
+      };
+
       await this.transporter.sendMail(mailOptions);
-      console.log(`Email de checkout enviado a ${supervisorEmail}`);
+      console.log(`✅ Email de check-out enviado a ${supervisorEmail}`);
     } catch (error) {
-      console.error('Error enviando email de checkout:', error);
-      throw error;
+      console.error(`❌ Error enviando email de checkout:`, error);
     }
   }
 
@@ -193,210 +139,201 @@ export class EmailService {
     return `${horas}h ${minutos}m`;
   }
 
-  private generarHtmlInforme(informe: InformeUsuario, fecha: string): string {
-    const { usuario, jornadas } = informe;
+  async enviarInformeDiario(informes: InformeUsuario[]) {
+    if (!this.emailsHabilitados) {
+      console.log(`📧 [SIMULADO] Informe diario para ${informes.length} usuarios`);
+      return;
+    }
 
-    let actividadesHtml = '';
-    let totalActividades = 0;
-    let actividadesCompletadas = 0;
-
-    jornadas.forEach((jornada) => {
-      const horaCheckin = jornada.hora_checkin.toLocaleTimeString('es-ES');
-      const horaCheckout = jornada.hora_checkout
-        ? jornada.hora_checkout.toLocaleTimeString('es-ES')
-        : 'No registrado';
-
-      actividadesHtml += `
-        <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
-          <h3 style="color: #2c5aa0; margin-bottom: 10px;">
-            Jornada ${jornada.aprobado ? '✅ Aprobada' : '⏳ Pendiente'}
-          </h3>
-          <p><strong>Check-in:</strong> ${horaCheckin}</p>
-          <p><strong>Check-out:</strong> ${horaCheckout}</p>
-          
-          <h4 style="color: #555; margin-top: 15px;">Actividades:</h4>
-      `;
-
-      if (jornada.actividades.length === 0) {
-        actividadesHtml +=
-          '<p style="color: #888;">No se registraron actividades</p>';
-      } else {
-        jornada.actividades.forEach((actividad) => {
-          totalActividades++;
-          if (
-            actividad.estado.nombre_estado.toLowerCase().includes('completad')
-          ) {
-            actividadesCompletadas++;
-          }
-
-          actividadesHtml += `
-            <div style="margin: 10px 0; padding: 10px; background-color: #f9f9f9; border-radius: 3px;">
-              <p><strong>Tarea:</strong> ${actividad.tarea}</p>
-              <p><strong>Meta:</strong> ${actividad.meta}</p>
-              <p><strong>Estado:</strong> <span style="color: #2c5aa0;">${actividad.estado.nombre_estado}</span></p>
-              ${actividad.observaciones ? `<p><strong>Observaciones:</strong> ${actividad.observaciones}</p>` : ''}
-            </div>
-          `;
+    const fecha = new Date().toLocaleDateString('es-ES');
+    
+    for (const informe of informes) {
+      try {
+        const html = this.generarHtmlInforme(informe, fecha);
+        
+        await this.transporter.sendMail({
+          from: process.env.MAIL_FROM || process.env.MAIL_USER,
+          to: informe.usuario.email,
+          subject: `Informe Diario - ${fecha}`,
+          html,
         });
+        
+        console.log(`✅ Informe enviado a ${informe.usuario.email}`);
+      } catch (error) {
+        console.error(`❌ Error enviando informe a ${informe.usuario.email}:`, error);
       }
+    }
+  }
 
-      actividadesHtml += '</div>';
-    });
+  async enviarInformeGerencial(informes: InformeUsuario[], emailsGerenciales: string[]) {
+    if (!this.emailsHabilitados) {
+      console.log(`📧 [SIMULADO] Informe gerencial para ${emailsGerenciales.length} gerentes`);
+      return;
+    }
 
-    const porcentajeCompletado =
-      totalActividades > 0
-        ? Math.round((actividadesCompletadas / totalActividades) * 100)
-        : 0;
+    const fecha = new Date().toLocaleDateString('es-ES');
+    const resumenHtml = this.generarResumenGerencial(informes, fecha);
+    
+    for (const email of emailsGerenciales) {
+      try {
+        await this.transporter.sendMail({
+          from: process.env.MAIL_FROM || process.env.MAIL_USER,
+          to: email,
+          subject: `Informe Gerencial - ${fecha}`,
+          html: resumenHtml,
+        });
+        
+        console.log(`✅ Informe gerencial enviado a ${email}`);
+      } catch (error) {
+        console.error(`❌ Error enviando informe gerencial a ${email}:`, error);
+      }
+    }
+  }
+
+  private generarResumenGerencial(informes: InformeUsuario[], fecha: string): string {
+    const totalUsuarios = informes.length;
+    const usuariosConJornadas = informes.filter(i => i.jornadas.length > 0).length;
+    const totalJornadas = informes.reduce((sum, i) => sum + i.jornadas.length, 0);
+    const jornadasAprobadas = informes.reduce((sum, i) => 
+      sum + i.jornadas.filter(j => j.aprobado).length, 0);
 
     return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Informe Diario de Actividades</title>
-      </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px;">
-        <div style="background-color: #2c5aa0; color: white; padding: 20px; text-align: center; border-radius: 5px;">
-          <h1>Informe Diario de Actividades</h1>
-          <p style="margin: 0; font-size: 18px;">${fecha}</p>
-        </div>
+      <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
+        <h2 style="color: #2563eb;">Informe Gerencial - ${fecha}</h2>
         
-        <div style="margin: 20px 0; padding: 20px; background-color: #f0f8ff; border-radius: 5px;">
-          <h2 style="color: #2c5aa0; margin-top: 0;">Hola ${usuario.nombre} ${usuario.apellido}</h2>
-          <p>Aquí tienes el resumen de tus actividades del día:</p>
-          
-          <div style="display: flex; justify-content: space-around; margin: 15px 0;">
-            <div style="text-align: center;">
-              <h3 style="margin: 0; color: #2c5aa0;">${totalActividades}</h3>
-              <p style="margin: 5px 0;">Total Actividades</p>
-            </div>
-            <div style="text-align: center;">
-              <h3 style="margin: 0; color: #28a745;">${actividadesCompletadas}</h3>
-              <p style="margin: 5px 0;">Completadas</p>
-            </div>
-            <div style="text-align: center;">
-              <h3 style="margin: 0; color: #ffc107;">${porcentajeCompletado}%</h3>
-              <p style="margin: 5px 0;">Progreso</p>
-            </div>
+        <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0;">Resumen del Día</h3>
+          <ul>
+            <li><strong>Total de usuarios:</strong> ${totalUsuarios}</li>
+            <li><strong>Usuarios con jornadas:</strong> ${usuariosConJornadas}</li>
+            <li><strong>Total de jornadas:</strong> ${totalJornadas}</li>
+            <li><strong>Jornadas aprobadas:</strong> ${jornadasAprobadas}</li>
+            <li><strong>Jornadas pendientes:</strong> ${totalJornadas - jornadasAprobadas}</li>
+          </ul>
+        </div>
+
+        <h3>Detalle por Usuario</h3>
+        ${informes.map(informe => `
+          <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
+            <h4>${informe.usuario.nombre} ${informe.usuario.apellido}</h4>
+            <p><strong>Email:</strong> ${informe.usuario.email}</p>
+            <p><strong>Jornadas registradas:</strong> ${informe.jornadas.length}</p>
+            
+            ${informe.jornadas.length > 0 ? `
+              <details>
+                <summary>Ver detalles de jornadas</summary>
+                ${informe.jornadas.map(jornada => `
+                  <div style="margin: 10px 0; padding: 10px; background: #f9f9f9;">
+                    <p><strong>Fecha:</strong> ${jornada.fecha.toLocaleDateString('es-ES')}</p>
+                    <p><strong>Estado:</strong> ${jornada.aprobado ? '✅ Aprobada' : '⏳ Pendiente'}</p>
+                    <p><strong>Actividades:</strong> ${jornada.actividades.length}</p>
+                  </div>
+                `).join('')}
+              </details>
+            ` : '<p>Sin jornadas registradas</p>'}
           </div>
-        </div>
-
-        ${actividadesHtml}
-
-        <div style="margin-top: 30px; padding: 15px; background-color: #f8f9fa; border-radius: 5px; text-align: center;">
-          <p style="margin: 0; color: #666;">
-            Este es un informe automático generado por el sistema de seguimiento de actividades.
-          </p>
-        </div>
-      </body>
-      </html>
+        `).join('')}
+        
+        <hr>
+        <p style="color: #666; font-size: 12px;">
+          Este es un informe automático del Sistema de Checkin generado el ${new Date().toLocaleString('es-ES')}.
+        </p>
+      </div>
     `;
   }
 
-  private generarHtmlInformeGerencial(
-    informes: InformeUsuario[],
-    fecha: string,
-  ): string {
-    let resumenHtml = '';
-    const totalUsuarios = informes.length;
-    let usuariosActivos = 0;
-    let totalActividades = 0;
-    let totalCompletadas = 0;
+  private generarHtmlInforme(informe: InformeUsuario, fecha: string): string {
+    const usuario = informe.usuario;
+    const jornadas = informe.jornadas;
 
-    informes.forEach((informe) => {
-      if (informe.jornadas.length > 0) {
-        usuariosActivos++;
-
-        informe.jornadas.forEach((jornada) => {
-          const actividadesJornada = jornada.actividades.length;
-          const completadasJornada = jornada.actividades.filter((a) =>
-            a.estado.nombre_estado.toLowerCase().includes('completad'),
-          ).length;
-
-          totalActividades += actividadesJornada;
-          totalCompletadas += completadasJornada;
-
-          resumenHtml += `
-            <tr>
-              <td style="padding: 8px; border: 1px solid #ddd;">${informe.usuario.nombre} ${informe.usuario.apellido}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${jornada.hora_checkin.toLocaleTimeString('es-ES')}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${jornada.hora_checkout ? jornada.hora_checkout.toLocaleTimeString('es-ES') : 'No registrado'}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${actividadesJornada}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${completadasJornada}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">
-                <span style="color: ${jornada.aprobado ? '#28a745' : '#ffc107'};">
-                  ${jornada.aprobado ? 'Aprobada' : 'Pendiente'}
-                </span>
-              </td>
-            </tr>
-          `;
-        });
-      }
-    });
-
-    const porcentajeGeneral =
-      totalActividades > 0
-        ? Math.round((totalCompletadas / totalActividades) * 100)
-        : 0;
+    let jornadasHtml = '';
+    if (jornadas.length === 0) {
+      jornadasHtml = '<p>No hay jornadas registradas para esta fecha.</p>';
+    } else {
+      jornadasHtml = jornadas.map(jornada => `
+        <div style="border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 5px;">
+          <h4>Jornada del ${jornada.fecha.toLocaleDateString('es-ES')}</h4>
+          <p><strong>Check-in:</strong> ${jornada.hora_checkin.toLocaleTimeString('es-ES')}</p>
+          ${jornada.hora_checkout ? `<p><strong>Check-out:</strong> ${jornada.hora_checkout.toLocaleTimeString('es-ES')}</p>` : '<p><strong>Check-out:</strong> Pendiente</p>'}
+          <p><strong>Estado:</strong> ${jornada.aprobado ? 'Aprobada' : 'Pendiente'}</p>
+          
+          <h5>Actividades:</h5>
+          ${jornada.actividades.length > 0 ? `
+            <ul>
+              ${jornada.actividades.map(actividad => `
+                <li>
+                  <strong>${actividad.tarea}</strong> - ${actividad.estado.nombre_estado}
+                  ${actividad.observaciones ? `<br><em>${actividad.observaciones}</em>` : ''}
+                </li>
+              `).join('')}
+            </ul>
+          ` : '<p>No hay actividades registradas.</p>'}
+        </div>
+      `).join('');
+    }
 
     return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Informe Gerencial Diario</title>
-      </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 1000px; margin: 0 auto; padding: 20px;">
-        <div style="background-color: #2c5aa0; color: white; padding: 20px; text-align: center; border-radius: 5px;">
-          <h1>Informe Gerencial Diario</h1>
-          <p style="margin: 0; font-size: 18px;">${fecha}</p>
-        </div>
+      <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
+        <h2 style="color: #2563eb;">Informe Diario - ${fecha}</h2>
+        <p>Hola ${usuario.nombre} ${usuario.apellido},</p>
+        <p>Este es tu informe de actividades del día:</p>
         
-        <div style="display: flex; justify-content: space-around; margin: 20px 0; padding: 20px; background-color: #f0f8ff; border-radius: 5px;">
-          <div style="text-align: center;">
-            <h3 style="margin: 0; color: #2c5aa0;">${usuariosActivos}/${totalUsuarios}</h3>
-            <p style="margin: 5px 0;">Usuarios Activos</p>
-          </div>
-          <div style="text-align: center;">
-            <h3 style="margin: 0; color: #2c5aa0;">${totalActividades}</h3>
-            <p style="margin: 5px 0;">Total Actividades</p>
-          </div>
-          <div style="text-align: center;">
-            <h3 style="margin: 0; color: #28a745;">${totalCompletadas}</h3>
-            <p style="margin: 5px 0;">Completadas</p>
-          </div>
-          <div style="text-align: center;">
-            <h3 style="margin: 0; color: #ffc107;">${porcentajeGeneral}%</h3>
-            <p style="margin: 5px 0;">Progreso General</p>
-          </div>
-        </div>
-
-        <div style="margin: 20px 0;">
-          <h2 style="color: #2c5aa0;">Detalle por Usuario</h2>
-          <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-            <thead>
-              <tr style="background-color: #f8f9fa;">
-                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Usuario</th>
-                <th style="padding: 10px; border: 1px solid #ddd;">Check-in</th>
-                <th style="padding: 10px; border: 1px solid #ddd;">Check-out</th>
-                <th style="padding: 10px; border: 1px solid #ddd;">Actividades</th>
-                <th style="padding: 10px; border: 1px solid #ddd;">Completadas</th>
-                <th style="padding: 10px; border: 1px solid #ddd;">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${resumenHtml}
-            </tbody>
-          </table>
-        </div>
-
-        <div style="margin-top: 30px; padding: 15px; background-color: #f8f9fa; border-radius: 5px; text-align: center;">
-          <p style="margin: 0; color: #666;">
-            Este es un informe automático generado por el sistema de seguimiento de actividades.
-          </p>
-        </div>
-      </body>
-      </html>
+        ${jornadasHtml}
+        
+        <hr>
+        <p style="color: #666; font-size: 12px;">
+          Este es un mensaje automático del Sistema de Checkin.<br>
+          Para más información, contacta con tu supervisor.
+        </p>
+      </div>
     `;
+  }
+
+  // Métodos para envío asíncrono sin bloquear respuestas de API
+  
+  async enviarNotificacionCheckinAsync(email: string, nombreEmpleado: string, fecha: Date): Promise<void> {
+    Promise.resolve().then(async () => {
+      try {
+        await this.enviarNotificacionCheckin(email, nombreEmpleado, fecha);
+      } catch (error) {
+        console.error(`Error enviando email checkin a ${email}:`, error);
+      }
+    });
+  }
+
+  async enviarNotificacionCheckoutAsync(
+    email: string, 
+    nombreEmpleado: string, 
+    fecha: Date, 
+    horaCheckin: Date, 
+    horaCheckout: Date
+  ): Promise<void> {
+    Promise.resolve().then(async () => {
+      try {
+        await this.enviarNotificacionCheckout(email, nombreEmpleado, fecha, horaCheckin, horaCheckout);
+      } catch (error) {
+        console.error(`Error enviando email checkout a ${email}:`, error);
+      }
+    });
+  }
+
+  async enviarInformeDiarioAsync(informes: InformeUsuario[]): Promise<void> {
+    Promise.resolve().then(async () => {
+      try {
+        await this.enviarInformeDiario(informes);
+      } catch (error) {
+        console.error('Error enviando informes diarios:', error);
+      }
+    });
+  }
+
+  async enviarInformeGerencialAsync(informes: InformeUsuario[], emailsGerenciales: string[]): Promise<void> {
+    Promise.resolve().then(async () => {
+      try {
+        await this.enviarInformeGerencial(informes, emailsGerenciales);
+      } catch (error) {
+        console.error('Error enviando informes gerenciales:', error);
+      }
+    });
   }
 }

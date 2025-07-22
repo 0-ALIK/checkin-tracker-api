@@ -20,11 +20,11 @@ export class ComentariosService {
       data: {
         id_actividad: data.id_actividad,
         comentario: data.comentario,
-        id_usuario: userId, // Cambiar de id_supervisor a id_usuario
+        id_supervisor: userId, // Usar id_supervisor como está en la base de datos
         fecha_comentario: new Date(), // Agregar fecha
       },
       include: {
-        usuario: true, // Cambiar de supervisor a usuario
+        usuario: true, // El mapeo ya está correcto en el schema
         actividad: true,
       },
     });

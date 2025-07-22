@@ -62,11 +62,11 @@ model Actividad {
 model Comentario {
   id               Int       @id @default(autoincrement())
   id_actividad     Int
-  id_usuario       Int
+  id_supervisor    Int
   comentario       String
   fecha_comentario DateTime
   actividad        Actividad @relation(fields: [id_actividad], references: [id])
-  usuario          Usuario   @relation(fields: [id_usuario], references: [id], map: "Comentario_id_supervisor_fkey")
+  usuario          Usuario   @relation(fields: [id_supervisor], references: [id], map: "Comentario_id_supervisor_fkey")
 
   @@map("Comentario")
 }

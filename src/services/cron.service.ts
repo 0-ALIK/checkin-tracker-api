@@ -17,23 +17,30 @@ export class CronService {
     timeZone: 'America/Lima',
   })
   async ejecutarInformeDiario() {
-    this.logger.log('Iniciando cron job para envío de informes diarios...');
+    this.logger.log('🕰️ Iniciando cron job para envío de informes diarios...');
 
     try {
+      // Registrar inicio en auditoría
+      await this.auditoriaService.registrarAccion(
+        'CRON_INFORME_INICIO',
+        'Cron job de informes diarios iniciado automáticamente',
+        1,
+      );
+
       const resultado =
         await this.informesService.enviarInformeDiarioAutomatico();
 
       // Registrar éxito en auditoría
       await this.auditoriaService.registrarAccion(
         'CRON_INFORME_EXITOSO',
-        `Cron job de informes ejecutado exitosamente`,
-        1, // ID del sistema
+        `Cron job de informes ejecutado exitosamente. Resultado: ${JSON.stringify(resultado)}`,
+        1,
       );
 
-      this.logger.log('Cron job de informes completado exitosamente');
+      this.logger.log('✅ Cron job de informes completado exitosamente');
       return resultado;
     } catch (error) {
-      this.logger.error('Error en cron job de informes:', error);
+      this.logger.error('❌ Error en cron job de informes:', error);
 
       // Registrar error en auditoría
       await this.auditoriaService.registrarAccion(
@@ -53,9 +60,16 @@ export class CronService {
     timeZone: 'America/Lima',
   })
   async limpiarAuditorias() {
-    this.logger.log('Iniciando limpieza de auditorías antiguas...');
+    this.logger.log('🧹 Iniciando limpieza de auditorías antiguas...');
 
     try {
+      // Registrar inicio en auditoría
+      await this.auditoriaService.registrarAccion(
+        'LIMPIEZA_AUDITORIA_INICIO',
+        'Cron job de limpieza de auditorías iniciado automáticamente',
+        1,
+      );
+
       // Eliminar auditorías de más de 90 días
       const fechaLimite = new Date();
       fechaLimite.setDate(fechaLimite.getDate() - 90);
@@ -64,16 +78,26 @@ export class CronService {
         await this.auditoriaService.limpiarAuditoriasAntiguas(fechaLimite);
 
       this.logger.log(
-        `Limpieza completada. Registros eliminados: ${result.count}`,
+        `✅ Limpieza completada. Registros eliminados: ${result.count}`,
       );
 
       await this.auditoriaService.registrarAccion(
-        'LIMPIEZA_AUDITORIA',
-        `Limpieza automática completada. Registros eliminados: ${result.count}`,
+        'LIMPIEZA_AUDITORIA_EXITOSA',
+        `Limpieza automática completada. Registros eliminados: ${result.count}. Fecha límite: ${fechaLimite.toISOString()}`,
         1,
       );
+
+      return result;
     } catch (error) {
-      this.logger.error('Error en limpieza de auditorías:', error);
+      this.logger.error('❌ Error en limpieza de auditorías:', error);
+      
+      await this.auditoriaService.registrarAccion(
+        'LIMPIEZA_AUDITORIA_ERROR',
+        `Error en limpieza automática de auditorías: ${error.message}`,
+        1,
+      );
+      
+      throw error;
     }
   }
 }

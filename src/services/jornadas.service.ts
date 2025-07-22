@@ -24,7 +24,7 @@ export class JornadasService {
     const fechaFin = new Date(fechaInicio);
     fechaFin.setHours(23, 59, 59, 999);
 
-    const existingJornada = await this.prisma.jornada.findFirst({
+    /* const existingJornada = await this.prisma.jornada.findFirst({
       where: {
         id_usuario,
         fecha: {
@@ -36,7 +36,7 @@ export class JornadasService {
 
     if (existingJornada) {
       throw new BadRequestException('Ya existe un check-in para esta fecha');
-    }
+    } */
 
     // Buscar usuario
     const usuario = await this.prisma.usuario.findUnique({
@@ -123,19 +123,22 @@ export class JornadasService {
       await Promise.all(actividadesPromises);
     }
 
-    // Enviar email a TODOS los supervisores (opcional)
+    // Enviar email a TODOS los supervisores (opcional) - de forma asíncrona
     if (supervisores.length > 0) {
-      for (const supervisor of supervisores) {
-        try {
-          await this.emailService.enviarNotificacionCheckin(
-            supervisor.email,
-            `${usuario.nombre} ${usuario.apellido}`,
-            nuevaJornada.fecha,
-          );
-        } catch (error) {
-          console.error(`Error enviando email a ${supervisor.email}:`, error);
+      // Ejecutar envío de emails sin bloquear la respuesta
+      Promise.resolve().then(async () => {
+        for (const supervisor of supervisores) {
+          try {
+            await this.emailService.enviarNotificacionCheckin(
+              supervisor.email,
+              `${usuario.nombre} ${usuario.apellido}`,
+              nuevaJornada.fecha,
+            );
+          } catch (error) {
+            console.error(`Error enviando email a ${supervisor.email}:`, error);
+          }
         }
-      }
+      });
     }
 
     await this.auditoriaService.registrarAccion(
@@ -219,20 +222,23 @@ export class JornadasService {
       },
     });
 
+    // Enviar email a supervisores de forma asíncrona sin bloquear la respuesta
     if (supervisores.length > 0 && jornadaActualizada.hora_checkout) {
-      for (const supervisor of supervisores) {
-        try {
-          await this.emailService.enviarNotificacionCheckout(
-            supervisor.email,
-            `${jornada.usuario.nombre} ${jornada.usuario.apellido}`,
-            jornadaActualizada.fecha,
-            jornadaActualizada.hora_checkin,
-            jornadaActualizada.hora_checkout,
-          );
-        } catch (error) {
-          console.error(`Error enviando email a ${supervisor.email}:`, error);
+      Promise.resolve().then(async () => {
+        for (const supervisor of supervisores) {
+          try {
+            await this.emailService.enviarNotificacionCheckout(
+              supervisor.email,
+              `${jornada.usuario.nombre} ${jornada.usuario.apellido}`,
+              jornadaActualizada.fecha,
+              jornadaActualizada.hora_checkin,
+              jornadaActualizada.hora_checkout!,
+            );
+          } catch (error) {
+            console.error(`Error enviando email a ${supervisor.email}:`, error);
+          }
         }
-      }
+      });
     }
 
     await this.auditoriaService.registrarAccion(
@@ -584,7 +590,7 @@ export class JornadasService {
       data: {
         id_actividad: data.id_actividad,
         comentario: data.comentario,
-        id_usuario: data.id_usuario,
+        id_supervisor: data.id_usuario, // Usar id_supervisor como está en la base de datos
         fecha_comentario: new Date(),
       },
       include: {
@@ -851,19 +857,21 @@ export class JornadasService {
       await Promise.all(actividadesPromises);
     }
 
-    // Enviar email a supervisores
+    // Enviar email a supervisores de forma asíncrona sin bloquear la respuesta
     if (supervisores.length > 0) {
-      for (const supervisor of supervisores) {
-        try {
-          await this.emailService.enviarNotificacionCheckin(
-            supervisor.email,
-            `${usuario.nombre} ${usuario.apellido}`,
-            nuevaJornada.fecha,
-          );
-        } catch (error) {
-          console.error(`Error enviando email a ${supervisor.email}:`, error);
+      Promise.resolve().then(async () => {
+        for (const supervisor of supervisores) {
+          try {
+            await this.emailService.enviarNotificacionCheckin(
+              supervisor.email,
+              `${usuario.nombre} ${usuario.apellido}`,
+              nuevaJornada.fecha,
+            );
+          } catch (error) {
+            console.error(`Error enviando email a ${supervisor.email}:`, error);
+          }
         }
-      }
+      });
     }
 
     await this.auditoriaService.registrarAccion(
