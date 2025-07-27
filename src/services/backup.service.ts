@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { platform } from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { EmailService } from './email.service';
 import { AuditoriaService } from './auditoria.service';
 import { PrismaService } from './prisma.service';
@@ -19,13 +21,14 @@ export interface BackupResult {
 @Injectable()
 export class BackupService {
   private readonly logger = new Logger(BackupService.name);
-  private readonly backupDir = process.env.BACKUP_DIR || './backups';
+  private readonly backupDir = '/home/orlando/bak';
+  private readonly execAsync = promisify(exec);
   
   // Configuración de la base de datos desde variables de entorno
   private readonly dbConfig = {
     host: process.env.DATABASE_HOST || 'localhost',
     port: process.env.DATABASE_PORT || '5432',
-    database: process.env.DATABASE_NAME || 'checkin_tracker',
+    database: process.env.DATABASE_NAME || 'db_checking',
     username: process.env.DATABASE_USER || 'postgres',
     password: process.env.DATABASE_PASSWORD || 'postgres',
   };
@@ -55,7 +58,7 @@ export class BackupService {
       `;
 
       await this.prismaService.$executeRawUnsafe(cronJob);
-      this.logger.log('✅ Backup automático programado en pg_cron');
+      this.logger.log('Backup automático programado en pg_cron');
       
     } catch (error) {
       this.logger.error('❌ Error programando backup automático:', error);
@@ -103,11 +106,11 @@ export class BackupService {
   }
 
   /**
-   * Ejecuta un backup usando scripts SQL desde la base de datos
+   * Ejecuta un backup usando pg_dump desde Node.js
    */
   async ejecutarBackup(): Promise<BackupResult> {
     const inicioTiempo = Date.now();
-    this.logger.log('🗄️ Iniciando backup desde la base de datos...');
+    this.logger.log('🗄️ Iniciando backup desde Node.js...');
 
     try {
       // Generar nombre del archivo con timestamp
@@ -115,60 +118,59 @@ export class BackupService {
       const nombreArchivo = `backup_${this.dbConfig.database}_${timestamp}.dump`;
       const rutaCompleta = resolve(this.backupDir, nombreArchivo);
 
-      // Generar script SQL
-      const scriptSQL = this.generarScriptBackupManual(rutaCompleta);
-      
-      // Guardar script en archivo para referencia
-      const scriptPath = resolve(this.backupDir, `script_${timestamp}.sql`);
-      writeFileSync(scriptPath, scriptSQL);
-      
-      this.logger.log(`📤 Ejecutando backup SQL: ${nombreArchivo}`);
+      this.logger.log(`📤 Ejecutando backup con pg_dump: ${nombreArchivo}`);
 
-      // Ejecutar el script de backup desde PostgreSQL
-      await this.prismaService.$executeRawUnsafe(scriptSQL);
+      // Construir comando pg_dump
+      const pgDumpCommand = [
+        'pg_dump',
+        `-h ${this.dbConfig.host}`,
+        `-p ${this.dbConfig.port}`,
+        `-U ${this.dbConfig.username}`,
+        `-d ${this.dbConfig.database}`,
+        '-Fc', // Formato custom
+        '-Z 9', // Compresión máxima
+        `-f "${rutaCompleta}"`
+      ].join(' ');
+
+      // Configurar variables de entorno para la contraseña
+      const env = {
+        ...process.env,
+        PGPASSWORD: this.dbConfig.password
+      };
+
+      this.logger.log(`Ejecutando comando: ${pgDumpCommand.replace(this.dbConfig.password, '***')}`);
+
+      // Ejecutar pg_dump
+      const { stdout, stderr } = await this.execAsync(pgDumpCommand, { env });
+
+      if (stderr && !stderr.includes('WARNING')) {
+        throw new Error(`pg_dump stderr: ${stderr}`);
+      }
 
       // Verificar que el archivo se creó correctamente
-      let stats: any = null;
-      let intentos = 0;
-      const maxIntentos = 10;
-      
-      // Esperar a que el archivo se genere (backup asíncrono)
-      while (intentos < maxIntentos && !existsSync(rutaCompleta)) {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1 segundo
-        intentos++;
+      if (!existsSync(rutaCompleta)) {
+        throw new Error('El archivo de backup no se generó');
       }
 
-      if (existsSync(rutaCompleta)) {
-        stats = statSync(rutaCompleta);
-      } else {
-        // Si no se creó el archivo, intentar buscar archivos recientes
-        const archivosRecientes = this.buscarArchivosRecientes();
-        if (archivosRecientes.length > 0) {
-          this.logger.warn(`Archivo esperado no encontrado, pero se encontraron: ${archivosRecientes.join(', ')}`);
-        }
-        throw new Error('El archivo de backup no se generó en la ruta esperada');
-      }
-
+      const stats = statSync(rutaCompleta);
       const tamaño = this.formatearTamaño(stats.size);
       const duracion = Date.now() - inicioTiempo;
 
       const resultado: BackupResult = {
         success: true,
-        mensaje: 'Backup completado exitosamente desde PostgreSQL',
+        mensaje: 'Backup completado exitosamente con pg_dump',
         archivo: nombreArchivo,
         tamaño,
         duracion,
-        scriptPath,
       };
 
-      this.logger.log(`✅ Backup completado: ${nombreArchivo} (${tamaño}) en ${duracion}ms`);
-      this.logger.log(`📁 Ruta completa: ${rutaCompleta}`);
-      this.logger.log(`📝 Script guardado en: ${scriptPath}`);
+      this.logger.log(`Backup completado: ${nombreArchivo} (${tamaño}) en ${duracion}ms`);
+      this.logger.log(`Ruta completa: ${rutaCompleta}`);
 
       // Registrar en auditoría
       await this.auditoriaService.registrarAccion(
         'BACKUP_CREADO',
-        `Backup SQL creado exitosamente. Archivo: ${nombreArchivo}, Tamaño: ${tamaño}, Duración: ${duracion}ms, Script: ${scriptPath}`
+        `Backup creado exitosamente con pg_dump. Archivo: ${nombreArchivo}, Tamaño: ${tamaño}, Duración: ${duracion}ms`
       );
 
       // Enviar email de éxito
@@ -183,17 +185,17 @@ export class BackupService {
       const duracion = Date.now() - inicioTiempo;
       const resultado: BackupResult = {
         success: false,
-        mensaje: 'Error al crear backup desde PostgreSQL',
+        mensaje: 'Error al crear backup con pg_dump',
         error: error.message,
         duracion,
       };
 
-      this.logger.error(`❌ Error en backup SQL: ${error.message}`, error.stack);
+      this.logger.error(`❌ Error en backup: ${error.message}`, error.stack);
 
       // Registrar error en auditoría
       await this.auditoriaService.registrarAccion(
         'BACKUP_ERROR',
-        `Error al crear backup SQL: ${error.message}. Duración: ${duracion}ms`
+        `Error al crear backup con pg_dump: ${error.message}. Duración: ${duracion}ms`
       );
 
       // Enviar email de error

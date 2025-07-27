@@ -885,8 +885,14 @@ export class JornadasService {
 
   async getStatsForEmployee(userId: number, startDate: string, endDate: string) {
     const result = await this.prisma.$queryRaw`
-      SELECT * FROM obtener_estadisticas_empleado(${userId}, ${startDate}::date, ${endDate}::date)
+      SELECT * FROM obtener_estadisticas_empleado(${userId}::integer, ${startDate}::date, ${endDate}::date)
     `;
-    return result;
+    
+    // Convertir BigInt a number para poder serializar a JSON
+    return (result as any[]).map(row => ({
+      total_jornadas: Number(row.total_jornadas),
+      horas_trabajadas: Number(row.horas_trabajadas),
+      actividades_completadas: Number(row.actividades_completadas)
+    }));
   }
 }

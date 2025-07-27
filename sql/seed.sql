@@ -30,14 +30,14 @@ INSERT INTO "Usuario" (nombre, apellido, email, contraseña, id_area, id_rol) VA
 ('Juan', 'Pérez', 'admin@pfdb.com', '$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 7, 1),
 -- Supervisores
 ('María', 'González', 'maria.gonzalez@pfdb.com', '$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 2, 2),
-('Carlos', 'Rodríguez', 'carlos.rodriguez@pfdb.com', '$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 3, 2),
-('Ana', 'Martínez', 'ana.martinez@pfdb.com', '$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 1, 2),
+--('Carlos', 'Rodríguez', 'carlos.rodriguez@pfdb.com', '$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 3, 2),
+--('Ana', 'Martínez', 'ana.martinez@pfdb.com', '$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 1, 2),
 -- Empleados
 ('Pedro', 'Silva', 'pedro.silva@pfdb.com', '$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 2, 3),
-('Laura', 'Fernández', 'laura.fernandez@pfdb.com', '$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 2, 3),
-('Roberto', 'López', 'roberto.lopez@pfdb.com', '$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 3, 3),
-('Sandra', 'García', 'sandra.garcia@pfdb.com', '$$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 4, 3),
-('Miguel', 'Torres', 'miguel.torres@pfdb.com', '$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 5, 3);
+--('Laura', 'Fernández', 'laura.fernandez@pfdb.com', '$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 2, 3),
+--('Roberto', 'López', 'roberto.lopez@pfdb.com', '$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 3, 3),
+--('Sandra', 'García', 'sandra.garcia@pfdb.com', '$$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 4, 3),
+--('Miguel', 'Torres', 'miguel.torres@pfdb.com', '$2b$10$fmInKBiib3SXI.rsZZ0I0euKDoGKKpaIEdr44FGevdPgGGRChQlua', 5, 3);
 
 -- Insertar jornadas de ejemplo (últimos 7 días)
 INSERT INTO "Jornada" (fecha, hora_checkin, hora_checkout, aprobado, id_usuario, id_supervisor, observaciones) VALUES 
