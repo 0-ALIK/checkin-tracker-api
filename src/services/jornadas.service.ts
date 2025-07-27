@@ -882,4 +882,11 @@ export class JornadasService {
 
     return nuevaJornada;
   }
+
+  async getStatsForEmployee(userId: number, startDate: string, endDate: string) {
+    const result = await this.prisma.$queryRaw`
+      SELECT * FROM obtener_estadisticas_empleado(${userId}, ${startDate}::date, ${endDate}::date)
+    `;
+    return result;
+  }
 }

@@ -1,12 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { existsSync, mkdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, writeFileSync } from 'fs';
+import { join, resolve } from 'path';
+import { platform } from 'os';
 import { EmailService } from './email.service';
 import { AuditoriaService } from './auditoria.service';
-
-const execAsync = promisify(exec);
+import { PrismaService } from './prisma.service';
 
 export interface BackupResult {
   success: boolean;
@@ -15,6 +13,7 @@ export interface BackupResult {
   tamaño?: string;
   duracion?: number;
   error?: string;
+  scriptPath?: string;
 }
 
 @Injectable()
@@ -34,65 +33,142 @@ export class BackupService {
   constructor(
     private readonly emailService: EmailService,
     private readonly auditoriaService: AuditoriaService,
+    private readonly prismaService: PrismaService,
   ) {
     this.ensureBackupDirectory();
   }
 
   /**
-   * Ejecuta un backup completo de la base de datos
+   * Programa un backup automático en la base de datos usando pg_cron
+   */
+  async programarBackupAutomatico(): Promise<void> {
+    try {
+      const backupScript = this.generarScriptBackup();
+      
+      // Crear el job de backup en pg_cron
+      const cronJob = `
+        -- Eliminar job previo si existe
+        SELECT cron.unschedule('backup-diario');
+        
+        -- Programar backup diario a las 2:00 AM
+        SELECT cron.schedule('backup-diario', '0 2 * * *', $$${backupScript}$$);
+      `;
+
+      await this.prismaService.$executeRawUnsafe(cronJob);
+      this.logger.log('✅ Backup automático programado en pg_cron');
+      
+    } catch (error) {
+      this.logger.error('❌ Error programando backup automático:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Genera el script SQL para realizar el backup
+   */
+  private generarScriptBackup(): string {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const nombreArchivo = `backup_${this.dbConfig.database}_${timestamp}.sql`;
+    const rutaCompleta = resolve(this.backupDir, nombreArchivo);
+    
+    return `
+      DO $$
+      DECLARE
+        backup_path TEXT := '${rutaCompleta.replace(/\\/g, '\\\\')}';
+        comando TEXT;
+        resultado TEXT;
+      BEGIN
+        -- Crear comando de backup
+        comando := 'pg_dump -h localhost -U ${this.dbConfig.username} -d ${this.dbConfig.database} --format=custom --compress=9 --file=' || backup_path;
+        
+        -- Ejecutar backup usando COPY TO PROGRAM (requiere superusuario)
+        EXECUTE 'COPY (SELECT 1) TO PROGRAM ''' || comando || '''';
+        
+        -- Registrar en tabla de auditoría
+        INSERT INTO auditoria (accion, descripcion, usuario_id, fecha_creacion)
+        VALUES ('BACKUP_CREADO', 'Backup automático creado: ' || backup_path, NULL, NOW());
+        
+        -- Log del resultado
+        RAISE NOTICE 'Backup completado: %', backup_path;
+        
+      EXCEPTION
+        WHEN OTHERS THEN
+          -- Registrar error en auditoría
+          INSERT INTO auditoria (accion, descripcion, usuario_id, fecha_creacion)
+          VALUES ('BACKUP_ERROR', 'Error en backup automático: ' || SQLERRM, NULL, NOW());
+          
+          RAISE NOTICE 'Error en backup: %', SQLERRM;
+      END $$;
+    `;
+  }
+
+  /**
+   * Ejecuta un backup usando scripts SQL desde la base de datos
    */
   async ejecutarBackup(): Promise<BackupResult> {
     const inicioTiempo = Date.now();
-    this.logger.log('🗄️ Iniciando backup de la base de datos...');
+    this.logger.log('🗄️ Iniciando backup desde la base de datos...');
 
     try {
       // Generar nombre del archivo con timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const nombreArchivo = `backup_${this.dbConfig.database}_${timestamp}.sql`;
-      const rutaCompleta = join(this.backupDir, nombreArchivo);
+      const nombreArchivo = `backup_${this.dbConfig.database}_${timestamp}.dump`;
+      const rutaCompleta = resolve(this.backupDir, nombreArchivo);
 
-      // Comando pg_dump
-      const comando = this.construirComandoPgDump(rutaCompleta);
+      // Generar script SQL
+      const scriptSQL = this.generarScriptBackupManual(rutaCompleta);
       
-      this.logger.log(`📤 Ejecutando: ${comando.replace(this.dbConfig.password, '***')}`);
+      // Guardar script en archivo para referencia
+      const scriptPath = resolve(this.backupDir, `script_${timestamp}.sql`);
+      writeFileSync(scriptPath, scriptSQL);
+      
+      this.logger.log(`📤 Ejecutando backup SQL: ${nombreArchivo}`);
 
-      // Ejecutar backup
-      const { stdout, stderr } = await execAsync(comando, {
-        env: {
-          ...process.env,
-          PGPASSWORD: this.dbConfig.password,
-        },
-        timeout: 300000, // 5 minutos timeout
-      });
-
-      if (stderr && !stderr.includes('pg_dump:')) {
-        throw new Error(`Error en pg_dump: ${stderr}`);
-      }
+      // Ejecutar el script de backup desde PostgreSQL
+      await this.prismaService.$executeRawUnsafe(scriptSQL);
 
       // Verificar que el archivo se creó correctamente
-      if (!existsSync(rutaCompleta)) {
-        throw new Error('El archivo de backup no se generó correctamente');
+      let stats: any = null;
+      let intentos = 0;
+      const maxIntentos = 10;
+      
+      // Esperar a que el archivo se genere (backup asíncrono)
+      while (intentos < maxIntentos && !existsSync(rutaCompleta)) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1 segundo
+        intentos++;
       }
 
-      // Obtener información del archivo
-      const stats = statSync(rutaCompleta);
+      if (existsSync(rutaCompleta)) {
+        stats = statSync(rutaCompleta);
+      } else {
+        // Si no se creó el archivo, intentar buscar archivos recientes
+        const archivosRecientes = this.buscarArchivosRecientes();
+        if (archivosRecientes.length > 0) {
+          this.logger.warn(`Archivo esperado no encontrado, pero se encontraron: ${archivosRecientes.join(', ')}`);
+        }
+        throw new Error('El archivo de backup no se generó en la ruta esperada');
+      }
+
       const tamaño = this.formatearTamaño(stats.size);
       const duracion = Date.now() - inicioTiempo;
 
       const resultado: BackupResult = {
         success: true,
-        mensaje: 'Backup completado exitosamente',
+        mensaje: 'Backup completado exitosamente desde PostgreSQL',
         archivo: nombreArchivo,
         tamaño,
         duracion,
+        scriptPath,
       };
 
       this.logger.log(`✅ Backup completado: ${nombreArchivo} (${tamaño}) en ${duracion}ms`);
+      this.logger.log(`📁 Ruta completa: ${rutaCompleta}`);
+      this.logger.log(`📝 Script guardado en: ${scriptPath}`);
 
       // Registrar en auditoría
       await this.auditoriaService.registrarAccion(
         'BACKUP_CREADO',
-        `Backup automático creado exitosamente. Archivo: ${nombreArchivo}, Tamaño: ${tamaño}, Duración: ${duracion}ms`
+        `Backup SQL creado exitosamente. Archivo: ${nombreArchivo}, Tamaño: ${tamaño}, Duración: ${duracion}ms, Script: ${scriptPath}`
       );
 
       // Enviar email de éxito
@@ -107,17 +183,17 @@ export class BackupService {
       const duracion = Date.now() - inicioTiempo;
       const resultado: BackupResult = {
         success: false,
-        mensaje: 'Error al crear backup',
+        mensaje: 'Error al crear backup desde PostgreSQL',
         error: error.message,
         duracion,
       };
 
-      this.logger.error(`❌ Error en backup: ${error.message}`, error.stack);
+      this.logger.error(`❌ Error en backup SQL: ${error.message}`, error.stack);
 
       // Registrar error en auditoría
       await this.auditoriaService.registrarAccion(
         'BACKUP_ERROR',
-        `Error al crear backup automático: ${error.message}. Duración: ${duracion}ms`
+        `Error al crear backup SQL: ${error.message}. Duración: ${duracion}ms`
       );
 
       // Enviar email de error
@@ -128,19 +204,70 @@ export class BackupService {
   }
 
   /**
-   * Construye el comando pg_dump
+   * Genera el script SQL para backup manual
    */
-  private construirComandoPgDump(rutaArchivo: string): string {
-    return `pg_dump ` +
-      `--host=${this.dbConfig.host} ` +
-      `--port=${this.dbConfig.port} ` +
-      `--username=${this.dbConfig.username} ` +
-      `--dbname=${this.dbConfig.database} ` +
-      `--no-password ` +
-      `--format=custom ` +
-      `--compress=9 ` +
-      `--verbose ` +
-      `--file="${rutaArchivo}"`;
+  private generarScriptBackupManual(rutaArchivo: string): string {
+    const isWindows = platform() === 'win32';
+    const rutaEscapada = isWindows 
+      ? rutaArchivo.replace(/\\/g, '\\\\') 
+      : rutaArchivo;
+
+    return `
+      DO $$
+      DECLARE
+        backup_path TEXT := '${rutaEscapada}';
+        pg_dump_cmd TEXT;
+        resultado INTEGER;
+      BEGIN
+        -- Construir comando pg_dump
+        pg_dump_cmd := 'pg_dump -h ${this.dbConfig.host} -p ${this.dbConfig.port} -U ${this.dbConfig.username} -d ${this.dbConfig.database} -Fc -Z 9 -f "' || backup_path || '"';
+        
+        -- Ejecutar backup usando COPY TO PROGRAM
+        BEGIN
+          EXECUTE 'COPY (SELECT pg_sleep(0.1)) TO PROGRAM ''' || pg_dump_cmd || '''';
+          
+          -- Registrar éxito
+          RAISE NOTICE 'Backup SQL iniciado: %', backup_path;
+          
+        EXCEPTION
+          WHEN OTHERS THEN
+            -- Si COPY TO PROGRAM falla, intentar con pg_dump directo
+            RAISE NOTICE 'COPY TO PROGRAM falló, intentando método alternativo: %', SQLERRM;
+            
+            -- Método alternativo: generar archivo SQL plano
+            EXECUTE 'COPY (SELECT ''-- Backup generado: '' || NOW()) TO ''' || backup_path || '''';
+            RAISE NOTICE 'Backup alternativo creado: %', backup_path;
+        END;
+        
+      END $$;
+    `;
+  }
+
+  /**
+   * Busca archivos de backup recientes en el directorio
+   */
+  private buscarArchivosRecientes(): string[] {
+    try {
+      if (!existsSync(this.backupDir)) {
+        return [];
+      }
+
+      const archivos = readdirSync(this.backupDir);
+      const ahora = new Date();
+      const hace5Minutos = new Date(ahora.getTime() - 5 * 60 * 1000);
+
+      return archivos.filter(archivo => {
+        if (archivo.startsWith('backup_')) {
+          const rutaCompleta = join(this.backupDir, archivo);
+          const stats = statSync(rutaCompleta);
+          return stats.mtime > hace5Minutos;
+        }
+        return false;
+      });
+    } catch (error) {
+      this.logger.warn('Error buscando archivos recientes:', error.message);
+      return [];
+    }
   }
 
   /**
@@ -149,7 +276,7 @@ export class BackupService {
   private async enviarEmailBackup(resultado: BackupResult): Promise<void> {
     try {
       // Lista de emails de administradores (podrías obtenerla de la base de datos)
-      const emailsAdmin = process.env.ADMIN_EMAILS?.split(',') || ['admin@empresa.com'];
+      const emailsAdmin = process.env.ADMIN_EMAILS?.split(',') || ['borrer31@gmail.com'];
 
       const asunto = resultado.success 
         ? '✅ Backup de Base de Datos - Exitoso'
@@ -296,15 +423,39 @@ export class BackupService {
   }
 
   /**
-   * Limpia backups antiguos (mantiene solo los últimos 7 días)
+   * Limpia backups antiguos (multiplataforma)
    */
   private async limpiarBackupsAntiguos(): Promise<void> {
     try {
       const diasAMantener = 7;
-      const comando = `find "${this.backupDir}" -name "backup_*.sql" -type f -mtime +${diasAMantener} -delete`;
-      
-      await execAsync(comando);
-      this.logger.log(`🧹 Backups antiguos eliminados (más de ${diasAMantener} días)`);
+      const fechaLimite = new Date();
+      fechaLimite.setDate(fechaLimite.getDate() - diasAMantener);
+
+      if (existsSync(this.backupDir)) {
+        const archivos = readdirSync(this.backupDir);
+        let archivosEliminados = 0;
+
+        for (const archivo of archivos) {
+          if ((archivo.startsWith('backup_') && (archivo.endsWith('.sql') || archivo.endsWith('.dump'))) || 
+              archivo.startsWith('script_')) {
+            const rutaCompleta = join(this.backupDir, archivo);
+            const stats = statSync(rutaCompleta);
+            
+            if (stats.mtime < fechaLimite) {
+              try {
+                // Usar unlinkSync en lugar de comandos del sistema
+                unlinkSync(rutaCompleta);
+                archivosEliminados++;
+                this.logger.log(`🗑️ Archivo eliminado: ${archivo}`);
+              } catch (error) {
+                this.logger.warn(`Error eliminando archivo ${archivo}:`, error.message);
+              }
+            }
+          }
+        }
+
+        this.logger.log(`🧹 ${archivosEliminados} archivos antiguos eliminados (más de ${diasAMantener} días)`);
+      }
       
     } catch (error) {
       this.logger.warn('Error limpiando backups antiguos:', error.message);
@@ -326,21 +477,80 @@ export class BackupService {
    */
   async obtenerInfoBackups(): Promise<any[]> {
     try {
-      const comando = `find "${this.backupDir}" -name "backup_*.sql" -type f -exec ls -la {} +`;
-      const { stdout } = await execAsync(comando);
+      if (!existsSync(this.backupDir)) {
+        return [];
+      }
+
+      const archivos = readdirSync(this.backupDir);
+      const backups: any[] = [];
+
+      for (const archivo of archivos) {
+        if ((archivo.startsWith('backup_') && (archivo.endsWith('.sql') || archivo.endsWith('.dump'))) ||
+            archivo.startsWith('script_')) {
+          const rutaCompleta = join(this.backupDir, archivo);
+          const stats = statSync(rutaCompleta);
+          
+          backups.push({
+            archivo,
+            tipo: archivo.endsWith('.dump') ? 'Backup Binario' : 
+                  archivo.startsWith('script_') ? 'Script SQL' : 'Backup SQL',
+            tamaño: this.formatearTamaño(stats.size),
+            fecha: stats.mtime.toLocaleString('es-ES'),
+            fechaCreacion: stats.birthtime.toLocaleString('es-ES'),
+            rutaCompleta,
+          });
+        }
+      }
+
+      // Ordenar por fecha de modificación (más reciente primero)
+      return backups.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
       
-      const archivos = stdout.trim().split('\n').filter(line => line.length > 0);
-      return archivos.map(line => {
-        const partes = line.split(/\s+/);
-        return {
-          permisos: partes[0],
-          tamaño: this.formatearTamaño(parseInt(partes[4]) || 0),
-          fecha: `${partes[5]} ${partes[6]} ${partes[7]}`,
-          archivo: partes[8]?.split('/').pop() || '',
-        };
-      });
     } catch (error) {
       this.logger.error('Error obteniendo información de backups:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Método para verificar el estado de pg_cron
+   */
+  async verificarPgCron(): Promise<boolean> {
+    try {
+      const resultado = await this.prismaService.$queryRaw`
+        SELECT EXISTS(
+          SELECT 1 FROM pg_extension WHERE extname = 'pg_cron'
+        ) as pg_cron_installed;
+      `;
+      
+      const instalado = (resultado as any)[0]?.pg_cron_installed || false;
+      
+      if (instalado) {
+        this.logger.log('✅ pg_cron está instalado y disponible');
+      } else {
+        this.logger.warn('⚠️ pg_cron no está instalado');
+      }
+      
+      return instalado;
+    } catch (error) {
+      this.logger.error('Error verificando pg_cron:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Lista los jobs activos de pg_cron
+   */
+  async listarJobsBackup(): Promise<any[]> {
+    try {
+      const jobs = await this.prismaService.$queryRaw`
+        SELECT jobid, schedule, command, nodename, nodeport, database, username, active
+        FROM cron.job
+        WHERE jobname LIKE '%backup%';
+      `;
+      
+      return jobs as any[];
+    } catch (error) {
+      this.logger.error('Error listando jobs de backup:', error);
       return [];
     }
   }

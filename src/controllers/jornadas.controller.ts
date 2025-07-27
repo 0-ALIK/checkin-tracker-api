@@ -8,6 +8,7 @@ import {
   ParseIntPipe,
   UseGuards,
   UnauthorizedException,
+  Query,
 } from '@nestjs/common';
 import { JornadasService } from '../services/jornadas.service';
 import { CheckinDto } from '../dto/jornadas/checkin.dto';
@@ -16,7 +17,7 @@ import { CheckinConTareasPendientesDto } from '../dto/jornadas/checkin-con-tarea
 import { RechazarJornadaDto } from '../dto/jornadas/rechazar-jornada.dto';
 import { JwtGuard } from '../guards/jwt.guard';
 import { RequestContextService } from '../services/request-context.service';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags, ApiResponse, ApiQuery } from '@nestjs/swagger';
 
 @ApiTags('jornadas')
 @Controller('jornadas')
@@ -155,5 +156,18 @@ export class JornadasController {
       usuarioId, 
       body.tareasArrastradas || []
     );
+  }
+
+  @Get('stats/:userId')
+  @ApiOperation({ summary: 'Obtiene estadísticas de jornadas para un usuario en un rango de fechas' })
+  @ApiResponse({ status: 200, description: 'Estadísticas del usuario.' })
+  @ApiQuery({ name: 'startDate', required: true, description: 'Fecha de inicio (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'endDate', required: true, description: 'Fecha de fin (YYYY-MM-DD)' })
+  getStats(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.jornadasService.getStatsForEmployee(userId, startDate, endDate);
   }
 }

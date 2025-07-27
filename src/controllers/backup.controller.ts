@@ -60,7 +60,7 @@ export class BackupController {
         email: {
           type: 'string',
           description: 'Email de destino para la prueba',
-          example: 'admin@empresa.com'
+          example: 'borrer31@gmail.com'
         },
         tipo: {
           type: 'string',
