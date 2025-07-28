@@ -236,26 +236,25 @@ INSERT INTO "Comentario" (id_actividad, id_supervisor, comentario, fecha_comenta
 (10, 4, 'Gestión de inventario muy eficiente. Excelente organización.', '2025-07-13 18:00:00'),
 
 -- Comentarios de ayer
-(16, 2, 'Code review muy detallado. Excelentes sugerencias implementadas.', '2025-07-26 17:45:00'),
-(17, 2, 'Resolución rápida del bug crítico. Gran trabajo bajo presión.', '2025-07-26 18:00:00'),
-(18, 2, 'Hotfix bien ejecutado. Testing de regresión muy completo.', '2025-07-26 18:15:00'),
+(19, 2, 'Code review muy detallado. Excelentes sugerencias implementadas.', '2025-07-26 17:45:00'),
+(20, 2, 'Resolución rápida del bug crítico. Gran trabajo bajo presión.', '2025-07-26 18:00:00'),
+(22, 2, 'Hotfix bien ejecutado. Testing de regresión muy completo.', '2025-07-26 18:15:00'),
 
 -- Comentarios de hoy en jornadas completadas
-(19, 2, 'API implementada perfectamente. Deploy sin problemas.', '2025-07-27 17:45:00'),
-(20, 2, 'Excelente coordinación en el deploy. Monitoreo proactivo.', '2025-07-27 18:00:00'),
-(21, 2, 'Testing de integración muy completo. Buena documentación.', '2025-07-27 18:15:00'),
-(25, 3, 'Presentación excelente. Stakeholders muy satisfechos.', '2025-07-27 17:30:00'),
-(28, 4, 'Buena selección de candidatos. Recomiendo proceder con ofertas.', '2025-07-27 18:00:00'),
+(25, 2, 'API implementada perfectamente. Deploy sin problemas.', '2025-07-27 17:45:00'),
+(26, 2, 'Excelente coordinación en el deploy. Monitoreo proactivo.', '2025-07-27 18:00:00'),
+(28, 2, 'Testing de integración muy completo. Buena documentación.', '2025-07-27 18:15:00'),
+(31, 3, 'Presentación excelente. Stakeholders muy satisfechos.', '2025-07-27 17:30:00'),
+(34, 4, 'Buena selección de candidatos. Recomiendo proceder con ofertas.', '2025-07-27 18:00:00'),
 
 -- Comentarios en actividades en progreso (solo para empleados trabajando)
-(31, 5, 'Buen progreso en la integración. Continúa con PayPal.', '2025-07-27 14:30:00'),
-(34, 5, 'Configuración de Facebook ads muy bien segmentada.', '2025-07-27 15:00:00'),
-(37, 4, 'Inventario físico va bien. Coordina con turno noche para terminar.', '2025-07-27 15:30:00'),
-(40, 3, 'Auditoría muy detallada. Incluye análisis de tendencias.', '2025-07-27 16:00:00');
+(37, 5, 'Buen progreso en la integración. Continúa con PayPal.', '2025-07-27 14:30:00'),
+(40, 5, 'Configuración de Facebook ads muy bien segmentada.', '2025-07-27 15:00:00'),
+(43, 4, 'Inventario físico va bien. Coordina con turno noche para terminar.', '2025-07-27 15:30:00'),
+(46, 3, 'Auditoría muy detallada. Incluye análisis de tendencias.', '2025-07-27 16:00:00');
 
 -- ==========================================
 -- AUDITORÍA SIGUIENDO EL FLUJO CORRECTO
--- (Los triggers automáticos se encargarán de check-ins/check-outs)
 -- ==========================================
 
 INSERT INTO "Auditoria" (id_usuario, accion, fecha, descripcion) VALUES 
@@ -266,19 +265,39 @@ INSERT INTO "Auditoria" (id_usuario, accion, fecha, descripcion) VALUES
 (4, 'LOGIN', '2025-07-27 08:00:00', 'Inicio de sesión supervisor Ana Martínez'),
 (5, 'LOGIN', '2025-07-27 08:15:00', 'Inicio de sesión supervisor Luis Fernández'),
 
--- Aprobaciones de check-ins (simulando el flujo)
-(2, 'APROBAR_CHECKIN', '2025-07-27 08:30:00', 'Aprobación check-in Pedro Silva'),
-(2, 'APROBAR_CHECKIN', '2025-07-27 08:45:00', 'Aprobación check-in Laura Fernández'),
-(3, 'APROBAR_CHECKIN', '2025-07-27 09:00:00', 'Aprobación check-in Roberto López'),
-(4, 'APROBAR_CHECKIN', '2025-07-27 09:15:00', 'Aprobación check-in Sandra García'),
-(5, 'APROBAR_CHECKIN', '2025-07-27 08:30:00', 'Aprobación check-in Miguel Torres'),
-(5, 'APROBAR_CHECKIN', '2025-07-27 08:45:00', 'Aprobación check-in Carmen Ruiz'),
-(4, 'APROBAR_CHECKIN', '2025-07-27 08:35:00', 'Aprobación check-in Diego Herrera'),
-(3, 'APROBAR_CHECKIN', '2025-07-27 08:20:00', 'Aprobación check-in Patricia Morales'),
+-- Check-ins de hoy (triggers automáticos)
+(6, 'CHECK_IN', '2025-07-27 08:00:00', 'Check-in empleado Pedro Silva'),
+(7, 'CHECK_IN', '2025-07-27 08:15:00', 'Check-in empleado Laura Fernández'),
+(8, 'CHECK_IN', '2025-07-27 07:45:00', 'Check-in empleado Roberto López'),
+(9, 'CHECK_IN', '2025-07-27 08:30:00', 'Check-in empleado Sandra García'),
+(10, 'CHECK_IN', '2025-07-27 08:00:00', 'Check-in empleado Miguel Torres'),
+(11, 'CHECK_IN', '2025-07-27 08:15:00', 'Check-in empleado Carmen Ruiz'),
+(12, 'CHECK_IN', '2025-07-27 08:05:00', 'Check-in empleado Diego Herrera'),
+(13, 'CHECK_IN', '2025-07-27 07:50:00', 'Check-in empleado Patricia Morales'),
+(14, 'CHECK_IN', '2025-07-27 08:25:00', 'Check-in empleado Alejandro Vargas'),
+(15, 'CHECK_IN', '2025-07-27 08:20:00', 'Check-in empleado Elena Castro'),
+(16, 'CHECK_IN', '2025-07-27 08:10:00', 'Check-in empleado Isabel Mendoza'),
+(17, 'CHECK_IN', '2025-07-27 08:35:00', 'Check-in empleado Andrés Jiménez'),
+
+-- Aprobaciones de check-ins (solo para empleados trabajando y completados)
+(2, 'CAMBIO_ESTADO_JORNADA', '2025-07-27 08:30:00', 'Aprobación check-in Pedro Silva'),
+(2, 'CAMBIO_ESTADO_JORNADA', '2025-07-27 08:45:00', 'Aprobación check-in Laura Fernández'),
+(3, 'CAMBIO_ESTADO_JORNADA', '2025-07-27 09:00:00', 'Aprobación check-in Roberto López'),
+(4, 'CAMBIO_ESTADO_JORNADA', '2025-07-27 09:15:00', 'Aprobación check-in Sandra García'),
+(5, 'CAMBIO_ESTADO_JORNADA', '2025-07-27 08:30:00', 'Aprobación check-in Miguel Torres'),
+(5, 'CAMBIO_ESTADO_JORNADA', '2025-07-27 08:45:00', 'Aprobación check-in Carmen Ruiz'),
+(4, 'CAMBIO_ESTADO_JORNADA', '2025-07-27 08:35:00', 'Aprobación check-in Diego Herrera'),
+(3, 'CAMBIO_ESTADO_JORNADA', '2025-07-27 08:20:00', 'Aprobación check-in Patricia Morales'),
+
+-- Check-outs de hoy (solo jornadas completadas)
+(6, 'CHECK_OUT', '2025-07-27 17:30:00', 'Check-out empleado Pedro Silva'),
+(7, 'CHECK_OUT', '2025-07-27 18:00:00', 'Check-out empleado Laura Fernández'),
+(8, 'CHECK_OUT', '2025-07-27 17:00:00', 'Check-out empleado Roberto López'),
+(9, 'CHECK_OUT', '2025-07-27 17:45:00', 'Check-out empleado Sandra García'),
 
 -- Aprobaciones de check-outs (solo para completamente aprobadas)
-(2, 'APROBAR_CHECKOUT', '2025-07-27 18:00:00', 'Aprobación check-out Pedro Silva'),
-(2, 'APROBAR_CHECKOUT', '2025-07-27 18:30:00', 'Aprobación check-out Laura Fernández'),
+(2, 'CAMBIO_ESTADO_JORNADA', '2025-07-27 18:00:00', 'Aprobación check-out Pedro Silva'),
+(2, 'CAMBIO_ESTADO_JORNADA', '2025-07-27 18:30:00', 'Aprobación check-out Laura Fernández'),
 
 -- Comentarios del día
 (2, 'CREATE_COMMENT', '2025-07-27 17:45:00', 'Comentario en deploy de Pedro'),
@@ -330,5 +349,3 @@ GROUP BY
         WHEN hora_checkout IS NOT NULL AND aprobado = false THEN 'Check-out Pendiente'
         WHEN hora_checkout IS NOT NULL AND aprobado = true THEN 'Completado'
     END;
-
-
