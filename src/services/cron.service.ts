@@ -1,23 +1,61 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Injectable, Logger, Inject, forwardRef, OnModuleInit } from '@nestjs/common';
+import { Cron, SchedulerRegistry } from '@nestjs/schedule';
+import { CronJob } from 'cron';
 import { InformesService } from './informes.service';
 import { AuditoriaService } from './auditoria.service';
 import { BackupService } from './backup.service';
 
 @Injectable()
-export class CronService {
+export class CronService implements OnModuleInit {
   private readonly logger = new Logger(CronService.name);
 
   constructor(
+    @Inject(forwardRef(() => InformesService))
     private readonly informesService: InformesService,
+    @Inject(forwardRef(() => AuditoriaService))
     private readonly auditoriaService: AuditoriaService,
+    @Inject(forwardRef(() => BackupService))
     private readonly backupService: BackupService,
+    private schedulerRegistry: SchedulerRegistry,
   ) {}
 
-  @Cron('0 22 * * *', {
-    name: 'informe-diario-automatico',
-    timeZone: 'America/Lima',
-  })
+  onModuleInit() {
+    this.logger.log('🔧 Inicializando cron jobs...');
+    this.registerCronJobs();
+  }
+
+  private registerCronJobs() {
+    try {
+      // Cron para informes diarios - 22:00 (10 PM) todos los días
+      const informeJob = new CronJob('0 22 * * *', () => {
+        this.ejecutarInformeDiario();
+      }, null, true, 'America/Lima');
+      
+      this.schedulerRegistry.addCronJob('informe-diario-automatico', informeJob);
+      this.logger.log('✅ Cron job "informe-diario-automatico" registrado exitosamente');
+
+      // Cron para limpieza de auditorías - 02:00 AM los domingos
+      const limpiezaJob = new CronJob('0 2 * * 0', () => {
+        this.limpiarAuditorias();
+      }, null, true, 'America/Lima');
+      
+      this.schedulerRegistry.addCronJob('limpieza-auditoria', limpiezaJob);
+      this.logger.log('✅ Cron job "limpieza-auditoria" registrado exitosamente');
+
+      // Cron para backup automático - 03:00 AM todos los días
+      const backupJob = new CronJob('0 3 * * *', () => {
+        this.ejecutarBackupAutomatico();
+      }, null, true, 'America/Lima');
+      
+      this.schedulerRegistry.addCronJob('backup-automatico', backupJob);
+      this.logger.log('✅ Cron job "backup-automatico" registrado exitosamente');
+
+      this.logger.log('🎉 Todos los cron jobs han sido registrados exitosamente');
+    } catch (error) {
+      this.logger.error('❌ Error al registrar cron jobs:', error);
+    }
+  }
+
   async ejecutarInformeDiario() {
     this.logger.log('🕰️ Iniciando cron job para envío de informes diarios...');
 
@@ -56,11 +94,6 @@ export class CronService {
     }
   }
 
-  // Cron adicional para limpieza de auditorías antiguas (opcional)
-  @Cron('0 2 * * 0', {
-    name: 'limpieza-auditoria',
-    timeZone: 'America/Lima',
-  })
   async limpiarAuditorias() {
     this.logger.log('🧹 Iniciando limpieza de auditorías antiguas...');
 
@@ -103,11 +136,6 @@ export class CronService {
     }
   }
 
-  // Cron para backup automático de la base de datos (diario a las 03:00)
-  @Cron('0 3 * * *', {
-    name: 'backup-automatico',
-    timeZone: 'America/Lima',
-  })
   async ejecutarBackupAutomatico() {
     this.logger.log('💾 Iniciando backup automático de la base de datos...');
 
@@ -149,6 +177,51 @@ export class CronService {
         1,
       );
       
+      throw error;
+    }
+  }
+
+  // Métodos para validación y debugging
+  getCronJobsStatus() {
+    const jobs = this.schedulerRegistry.getCronJobs();
+    const status: Array<{
+      name: string;
+      running: boolean;
+      nextRun: string | null;
+      lastRun: string | null;
+    }> = [];
+    
+    jobs.forEach((job, name) => {
+      const nextDate = job.nextDate ? job.nextDate() : null;
+      const lastDate = job.lastDate ? job.lastDate() : null;
+      
+      status.push({
+        name,
+        running: true, // Los cron jobs registrados están activos por defecto
+        nextRun: nextDate ? nextDate.toString() : null,
+        lastRun: lastDate ? lastDate.toString() : null,
+      });
+    });
+    
+    return status;
+  }
+
+  async testCronJob(jobName: string) {
+    this.logger.log(`🧪 Ejecutando test del cron job: ${jobName}`);
+    
+    try {
+      switch (jobName) {
+        case 'informe-diario':
+          return await this.ejecutarInformeDiario();
+        case 'limpieza-auditoria':
+          return await this.limpiarAuditorias();
+        case 'backup-automatico':
+          return await this.ejecutarBackupAutomatico();
+        default:
+          throw new Error(`Cron job no encontrado: ${jobName}`);
+      }
+    } catch (error) {
+      this.logger.error(`❌ Error en test del cron job ${jobName}:`, error);
       throw error;
     }
   }

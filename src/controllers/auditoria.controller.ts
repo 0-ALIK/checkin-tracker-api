@@ -135,4 +135,28 @@ export class AuditoriaController {
       mensaje: 'Cron de limpieza ejecutado exitosamente'
     };
   }
+
+  @Get('cron-status')
+  @ApiOperation({ summary: 'Obtener estado de todos los cron jobs' })
+  @ApiResponse({ status: 200, description: 'Estado de los cron jobs' })
+  getCronJobsStatus() {
+    return this.cronService.getCronJobsStatus();
+  }
+
+  @Post('test-cron/:jobName')
+  @ApiOperation({ summary: 'Ejecutar un cron job específico para testing' })
+  @ApiResponse({ status: 200, description: 'Cron job ejecutado para testing' })
+  async testCronJob(@Param('jobName') jobName: string) {
+    const resultado = await this.cronService.testCronJob(jobName);
+    
+    await this.auditoriaService.registrarAccion(
+      'TEST_CRON_MANUAL',
+      `Test manual del cron job: ${jobName}`
+    );
+
+    return {
+      mensaje: `Test del cron job ${jobName} ejecutado exitosamente`,
+      resultado
+    };
+  }
 }

@@ -69,6 +69,7 @@ import { envs } from './config/env.config';
   ],
   providers: [
     PrismaService,
+    RequestContextService,
     AuthService,
     UsuariosService,
     JornadasService,
@@ -80,9 +81,8 @@ import { envs } from './config/env.config';
     AuditoriaService,
     EmailService,
     InformesService,
-    CronService,
     BackupService,
-    RequestContextService,
+    CronService, // CronService al final para que sus dependencias estén inicializadas
   ],
 })
 export class AppModule {}
